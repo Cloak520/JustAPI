@@ -56,22 +56,36 @@ export const useRequestStore = defineStore('request', () => {
     }))
   }, { immediate: true })
 
+  // 辅助函数：编码参数时保护 {{variable}} 避免被 URLSearchParams 破坏为 %7B%7B...%7D%7D
+  function encodeParamPreservingVariables(str: string): string {
+    if (!str) return ''
+    const tokens: string[] = []
+    const placeholderStr = str.replace(/\{\{\s*([a-zA-Z0-9_$-]+)\s*\}\}/g, (match) => {
+      const idx = tokens.length
+      tokens.push(match)
+      return `__VAR_TOK_${idx}__`
+    })
+    const encoded = encodeURIComponent(placeholderStr)
+    return encoded.replace(/__VAR_TOK_(\d+)__/g, (_, idx) => tokens[Number(idx)])
+  }
+
   // 实时计算最终拼接后的完整 URL (含 BaseURL、替换后的 Path 参数和 Query 参数)
   const resolvedUrl = computed(() => {
     let cleanBase = baseUrl.value.trim().replace(/\/+$/, '')
     let cleanPath = path.value.trim()
 
-    // 替换 Path Variables
+    // 替换 Path Variables (保护 {{...}})
     for (const p of pathParams.value) {
       if (p.key) {
-        cleanPath = cleanPath.replaceAll(`{${p.key}}`, encodeURIComponent(p.value))
-        cleanPath = cleanPath.replaceAll(`:${p.key}`, encodeURIComponent(p.value))
+        const safeVal = encodeParamPreservingVariables(p.value)
+        cleanPath = cleanPath.replaceAll(`{${p.key}}`, safeVal)
+        cleanPath = cleanPath.replaceAll(`:${p.key}`, safeVal)
       }
     }
 
     // 拼接 BaseURL 与相对路径
     let fullUrl = ''
-    if (/^https?:\/\//i.test(cleanPath)) {
+    if (/^https?:\/\//i.test(cleanPath) || cleanPath.startsWith('{{')) {
       fullUrl = cleanPath
     } else {
       if (cleanPath && !cleanPath.startsWith('/')) {
@@ -80,18 +94,32 @@ export const useRequestStore = defineStore('request', () => {
       fullUrl = `${cleanBase}${cleanPath}`
     }
 
-    // 拼接 Query Params
+    // 拼接 Query Params (保护 {{...}})
     const activeParams = queryParams.value.filter(p => p.enabled && p.key.trim())
     if (activeParams.length > 0) {
-      const searchParams = new URLSearchParams()
-      for (const p of activeParams) {
-        searchParams.append(p.key.trim(), p.value)
-      }
+      const parts = activeParams.map(p => {
+        const k = encodeParamPreservingVariables(p.key.trim())
+        const v = encodeParamPreservingVariables(p.value)
+        return `${k}=${v}`
+      })
       const separator = fullUrl.includes('?') ? '&' : '?'
-      fullUrl = `${fullUrl}${separator}${searchParams.toString()}`
+      fullUrl = `${fullUrl}${separator}${parts.join('&')}`
     }
 
     return fullUrl
+  })
+
+  // 实时预览 BaseURL 插值计算值
+  const interpolatedBaseUrl = computed(() => {
+    try {
+      const projStore = useProjectStore()
+      const tabStore = useTabStore()
+      const activeTab = tabStore.tabs.find(t => t.id === tabStore.activeTabId)
+      const varMap = projStore.getEffectiveVariableMap(activeTab?.subProjectDir)
+      return interpolate(baseUrl.value, varMap)
+    } catch {
+      return baseUrl.value
+    }
   })
 
   // 实时预览插值计算后的最终完整 URL
@@ -136,8 +164,14 @@ export const useRequestStore = defineStore('request', () => {
       // 1. 动态插值解析请求最终 URL (含 BaseURL, 路径参数, Query 参数)
       const finalUrl = interpolate(resolvedUrl.value, varMap)
 
-      // 2. 组装并插值 Header 数组
-      const validHeaders: [string, string][] = headers.value
+      if (!/^https?:\/\//i.test(finalUrl)) {
+        throw new Error(`无效的请求 URL: "${finalUrl}"。请求地址必须以 http:// 或 https:// 开头，请在顶部设置 BaseURL 或在环境变量/路径中使用完整地址。`)
+      }
+
+      // 2. 组装并插值 Header 数组 (合并项目与子项目级联继承的 Headers + 请求自身独立 Headers)
+      const effectiveInheritedHeaders = projStore.resolveEffectiveHeaders(activeTab?.subProjectDir)
+      const allHeaders = [...effectiveInheritedHeaders, ...headers.value]
+      const validHeaders: [string, string][] = allHeaders
         .filter(h => h.enabled && h.key.trim())
         .map(h => [interpolate(h.key.trim(), varMap), interpolate(h.value, varMap)])
 
@@ -307,6 +341,7 @@ export const useRequestStore = defineStore('request', () => {
     errorMessage,
     resolvedUrl,
     interpolatedUrl,
+    interpolatedBaseUrl,
     urlVariableTokens,
     send,
     formatJson,

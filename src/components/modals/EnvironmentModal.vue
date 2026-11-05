@@ -38,13 +38,13 @@
             <div
               v-for="env in localEnvironments"
               :key="env.id"
-              @click="selectedEnvId = env.id"
+              @click="switchEnv(env.id)"
               class="flex items-center justify-between px-3 py-2 cursor-pointer transition text-xs group"
               :class="selectedEnvId === env.id ? 'bg-primary/15 text-primary font-medium' : 'text-foreground hover:bg-muted/50'"
             >
               <div class="flex items-center space-x-2 truncate">
                 <Check
-                  v-if="projectStore.projectConfig?.activeEnvironmentId === env.id"
+                  v-if="activeEnvId === env.id"
                   class="w-3.5 h-3.5 text-emerald-400 shrink-0"
                   title="当前激活环境"
                 />
@@ -54,7 +54,7 @@
 
               <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition" @click.stop>
                 <button
-                  v-if="projectStore.projectConfig?.activeEnvironmentId !== env.id"
+                  v-if="activeEnvId !== env.id"
                   @click="setAsActive(env.id)"
                   class="p-1 rounded hover:bg-muted text-muted-foreground hover:text-emerald-400 transition"
                   title="激活此环境"
@@ -82,14 +82,27 @@
           <template v-if="currentSelectedEnv">
             <!-- 环境名称与模式切换 -->
             <div class="flex items-center justify-between px-4 py-2.5 border-b border-border bg-card/40 shrink-0">
-              <div class="flex items-center space-x-2">
-                <span class="text-xs text-muted-foreground shrink-0 font-medium">环境名称:</span>
-                <input
-                  v-model="currentSelectedEnv.name"
-                  type="text"
-                  placeholder="例如: Dev, Test, Prod"
-                  class="text-xs px-2 py-1 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary w-48 font-medium"
-                />
+              <div class="flex items-center space-x-3">
+                <div class="flex items-center space-x-2">
+                  <span class="text-xs text-muted-foreground shrink-0 font-medium">环境名称:</span>
+                  <input
+                    v-model="currentSelectedEnv.name"
+                    type="text"
+                    placeholder="例如: Dev, Test, Prod"
+                    class="text-xs px-2 py-1 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary w-44 font-medium"
+                  />
+                </div>
+
+                <!-- 显式激活按钮 -->
+                <button
+                  @click="toggleActiveEnv(currentSelectedEnv.id)"
+                  class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition border"
+                  :class="activeEnvId === currentSelectedEnv.id ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-muted/40 text-muted-foreground border-border hover:text-foreground'"
+                  :title="activeEnvId === currentSelectedEnv.id ? '当前环境已激活，点击取消激活' : '点击设为当前激活生效环境'"
+                >
+                  <Check class="w-3.5 h-3.5" :class="activeEnvId === currentSelectedEnv.id ? 'text-emerald-400' : 'text-muted-foreground'" />
+                  <span>{{ activeEnvId === currentSelectedEnv.id ? '已激活 (当前生效)' : '设为激活环境' }}</span>
+                </button>
               </div>
 
               <!-- 表格 vs 文本批量模式切换 -->
@@ -242,6 +255,7 @@ const projectStore = useProjectStore()
 // 本地可编辑的副本
 const localEnvironments = ref<Environment[]>([])
 const selectedEnvId = ref<string | null>(null)
+const activeEnvId = ref<string | null>(null)
 const mode = ref<'grid' | 'bulk'>('grid')
 const bulkText = ref('')
 
@@ -259,11 +273,12 @@ const currentSelectedEnv = computed(() => {
 // 当模态框打开时，初始化数据副本
 watch(() => props.modelValue, (open) => {
   if (open) {
-    const rawEnvs = projectStore.projectConfig?.environments || []
+    const rawEnvs = projectStore.environments || []
     localEnvironments.value = JSON.parse(JSON.stringify(rawEnvs))
+    activeEnvId.value = projectStore.activeEnvironment?.id || null
 
     if (localEnvironments.value.length > 0) {
-      selectedEnvId.value = projectStore.projectConfig?.activeEnvironmentId || localEnvironments.value[0].id
+      selectedEnvId.value = activeEnvId.value || localEnvironments.value[0].id
     } else {
       selectedEnvId.value = null
     }
@@ -271,10 +286,12 @@ watch(() => props.modelValue, (open) => {
   }
 })
 
-// 当切换环境时，将当前变量写入变量行和文本中
-watch(selectedEnvId, () => {
+function switchEnv(id: string) {
+  if (selectedEnvId.value === id) return
+  commitCurrentEnvVariables()
+  selectedEnvId.value = id
   loadCurrentEnvVariables()
-})
+}
 
 // 监听模式切换，同步表格和文本
 watch(mode, (newMode) => {
@@ -294,6 +311,20 @@ function loadCurrentEnvVariables() {
   const vars = currentSelectedEnv.value.variables || {}
   variableRows.value = Object.entries(vars).map(([key, value]) => ({ key, value }))
   syncToBulkText()
+}
+
+function commitCurrentEnvVariables() {
+  if (!currentSelectedEnv.value) return
+  if (mode.value === 'bulk') {
+    syncFromBulkText()
+  }
+  const map: Record<string, string> = {}
+  for (const row of variableRows.value) {
+    if (row.key.trim()) {
+      map[row.key.trim()] = row.value
+    }
+  }
+  currentSelectedEnv.value.variables = map
 }
 
 function syncToBulkText() {
@@ -333,6 +364,7 @@ function syncFromBulkText() {
 }
 
 function addEnvironment() {
+  commitCurrentEnvVariables()
   const newEnv: Environment = {
     id: 'env_' + crypto.randomUUID().slice(0, 8),
     name: `环境 ${localEnvironments.value.length + 1}`,
@@ -340,18 +372,32 @@ function addEnvironment() {
   }
   localEnvironments.value.push(newEnv)
   selectedEnvId.value = newEnv.id
+  if (!activeEnvId.value) {
+    activeEnvId.value = newEnv.id
+  }
+  loadCurrentEnvVariables()
 }
 
 function deleteEnv(id: string) {
   localEnvironments.value = localEnvironments.value.filter(e => e.id !== id)
+  if (activeEnvId.value === id) {
+    activeEnvId.value = localEnvironments.value[0]?.id || null
+  }
   if (selectedEnvId.value === id) {
     selectedEnvId.value = localEnvironments.value[0]?.id || null
+    loadCurrentEnvVariables()
   }
 }
 
 function setAsActive(id: string) {
-  if (projectStore.projectConfig) {
-    projectStore.projectConfig.activeEnvironmentId = id
+  activeEnvId.value = id
+}
+
+function toggleActiveEnv(id: string) {
+  if (activeEnvId.value === id) {
+    activeEnvId.value = null
+  } else {
+    activeEnvId.value = id
   }
 }
 
@@ -368,34 +414,15 @@ function close() {
 }
 
 async function saveAll() {
-  // 如果处于批量模式，先同步回表格
-  if (mode.value === 'bulk') {
-    syncFromBulkText()
+  commitCurrentEnvVariables()
+
+  // 若尚未指定激活环境，且当前有环境存在，默认将当前查看的环境设为激活环境
+  let targetActive = activeEnvId.value
+  if (!targetActive && localEnvironments.value.length > 0) {
+    targetActive = selectedEnvId.value || localEnvironments.value[0].id
   }
 
-  // 保存当前选中环境的 variables 字典
-  if (currentSelectedEnv.value) {
-    const map: Record<string, string> = {}
-    for (const row of variableRows.value) {
-      if (row.key.trim()) {
-        map[row.key.trim()] = row.value
-      }
-    }
-    currentSelectedEnv.value.variables = map
-  }
-
-  if (projectStore.projectConfig) {
-    projectStore.projectConfig.environments = localEnvironments.value
-    // 如果激活的环境被删除了，重置为第一个或 undefined
-    if (
-      projectStore.projectConfig.activeEnvironmentId &&
-      !localEnvironments.value.some(e => e.id === projectStore.projectConfig?.activeEnvironmentId)
-    ) {
-      projectStore.projectConfig.activeEnvironmentId = localEnvironments.value[0]?.id || undefined
-    }
-    await projectStore.saveProjectConfig()
-  }
-
+  await projectStore.saveEnvironments(localEnvironments.value, targetActive)
   close()
 }
 </script>

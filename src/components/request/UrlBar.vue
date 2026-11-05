@@ -30,7 +30,7 @@
         <!-- 继承的 BaseURL 标签/前缀 -->
         <div class="px-2.5 py-1.5 bg-muted/60 text-muted-foreground text-xs font-mono border-r border-border flex items-center space-x-1.5 shrink-0 select-none">
           <Globe class="w-3.5 h-3.5 text-primary/80" />
-          <span class="max-w-[200px] truncate" :title="store.baseUrl">{{ store.baseUrl || '无 BaseURL' }}</span>
+          <span class="max-w-[200px] truncate" :title="store.interpolatedBaseUrl !== store.baseUrl ? `${store.baseUrl} -> ${store.interpolatedBaseUrl}` : (store.baseUrl || '无 BaseURL')">{{ store.interpolatedBaseUrl || store.baseUrl || '无 BaseURL' }}</span>
         </div>
 
         <!-- 相对路径 Path 输入 -->

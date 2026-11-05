@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useStorage } from '@vueuse/core'
 import type { FullProjectData, ProjectConfig, SubProjectData, SubProjectConfig, ApiRequest, HistoryItem, KeyValuePair, Environment } from '@/types'
-import { resolveEffectiveVariableMap, interpolate as interpolateText } from '@/utils/interpolation'
+import { resolveEffectiveVariableMap, interpolate as interpolateText, type VariableSourceInfo } from '@/utils/interpolation'
 import { useRequestStore } from './requestStore'
 
 export interface RecentProject {
@@ -21,6 +21,19 @@ export const useProjectStore = defineStore('project', () => {
 
   // 本地存储的最近打开项目
   const recentProjects = useStorage<RecentProject[]>('justapi_recent_projects', [])
+
+  // 全局独立环境列表与激活 ID (当未打开任何本地目录时生效，持久化保存在 localStorage)
+  const globalEnvironments = useStorage<Environment[]>('justapi_global_environments', [
+    {
+      id: 'env_dev',
+      name: 'Development',
+      variables: {
+        baseUrl: 'http://localhost:6674',
+        env: 'dev'
+      }
+    }
+  ])
+  const globalActiveEnvId = useStorage<string | null>('justapi_global_active_env_id', 'env_dev')
 
   const hasProject = computed(() => !!projectPath.value && !!projectConfig.value)
 
@@ -293,55 +306,102 @@ export const useProjectStore = defineStore('project', () => {
     return stats
   }
 
-  // 13. 环境变量管理
-  const activeEnvironment = computed<Environment | null>(() => {
-    if (!projectConfig.value?.environments || !projectConfig.value.activeEnvironmentId) {
-      return null
+  // 13. 环境变量管理 (兼容打开本地项目目录与纯独立单机使用)
+  const environments = computed<Environment[]>(() => {
+    if (projectConfig.value?.environments && projectConfig.value.environments.length > 0) {
+      return projectConfig.value.environments
     }
-    return projectConfig.value.environments.find(e => e.id === projectConfig.value?.activeEnvironmentId) || null
+    return globalEnvironments.value
+  })
+
+  const activeEnvironment = computed<Environment | null>(() => {
+    if (projectConfig.value?.environments && projectConfig.value.environments.length > 0) {
+      if (!projectConfig.value.activeEnvironmentId) return null
+      return projectConfig.value.environments.find(e => e.id === projectConfig.value?.activeEnvironmentId) || null
+    }
+    if (!globalActiveEnvId.value) return null
+    return globalEnvironments.value.find(e => e.id === globalActiveEnvId.value) || null
   })
 
   async function setActiveEnvironment(id: string | null) {
-    if (!projectConfig.value) return
-    projectConfig.value.activeEnvironmentId = id || undefined
-    await saveProjectConfig()
+    if (projectConfig.value) {
+      projectConfig.value.activeEnvironmentId = id || undefined
+      await saveProjectConfig()
+    } else {
+      globalActiveEnvId.value = id
+    }
+  }
+
+  // 批量保存所有环境与激活状态 (兼容本地项目与独立模式)
+  async function saveEnvironments(envs: Environment[], activeId?: string | null) {
+    if (projectConfig.value) {
+      projectConfig.value.environments = envs
+      if (activeId !== undefined) {
+        projectConfig.value.activeEnvironmentId = activeId || undefined
+      }
+      await saveProjectConfig()
+    } else {
+      globalEnvironments.value = envs
+      if (activeId !== undefined) {
+        globalActiveEnvId.value = activeId
+      }
+    }
   }
 
   async function createEnvironment(name: string, variables: Record<string, string> = {}) {
-    if (!projectConfig.value) return null
-    if (!projectConfig.value.environments) {
-      projectConfig.value.environments = []
-    }
     const newEnv: Environment = {
       id: 'env_' + crypto.randomUUID().slice(0, 8),
       name: name.trim() || '新环境',
       variables
     }
-    projectConfig.value.environments.push(newEnv)
-    if (!projectConfig.value.activeEnvironmentId) {
-      projectConfig.value.activeEnvironmentId = newEnv.id
+    if (projectConfig.value) {
+      if (!projectConfig.value.environments) {
+        projectConfig.value.environments = []
+      }
+      projectConfig.value.environments.push(newEnv)
+      if (!projectConfig.value.activeEnvironmentId) {
+        projectConfig.value.activeEnvironmentId = newEnv.id
+      }
+      await saveProjectConfig()
+    } else {
+      globalEnvironments.value.push(newEnv)
+      if (!globalActiveEnvId.value) {
+        globalActiveEnvId.value = newEnv.id
+      }
     }
-    await saveProjectConfig()
     return newEnv
   }
 
   async function updateEnvironment(id: string, name: string, variables: Record<string, string>) {
-    if (!projectConfig.value?.environments) return
-    const env = projectConfig.value.environments.find(e => e.id === id)
-    if (env) {
-      env.name = name.trim()
-      env.variables = variables
-      await saveProjectConfig()
+    if (projectConfig.value?.environments) {
+      const env = projectConfig.value.environments.find(e => e.id === id)
+      if (env) {
+        env.name = name.trim()
+        env.variables = variables
+        await saveProjectConfig()
+      }
+    } else {
+      const env = globalEnvironments.value.find(e => e.id === id)
+      if (env) {
+        env.name = name.trim()
+        env.variables = variables
+      }
     }
   }
 
   async function deleteEnvironment(id: string) {
-    if (!projectConfig.value?.environments) return
-    projectConfig.value.environments = projectConfig.value.environments.filter(e => e.id !== id)
-    if (projectConfig.value.activeEnvironmentId === id) {
-      projectConfig.value.activeEnvironmentId = projectConfig.value.environments[0]?.id || undefined
+    if (projectConfig.value?.environments) {
+      projectConfig.value.environments = projectConfig.value.environments.filter(e => e.id !== id)
+      if (projectConfig.value.activeEnvironmentId === id) {
+        projectConfig.value.activeEnvironmentId = projectConfig.value.environments[0]?.id || undefined
+      }
+      await saveProjectConfig()
+    } else {
+      globalEnvironments.value = globalEnvironments.value.filter(e => e.id !== id)
+      if (globalActiveEnvId.value === id) {
+        globalActiveEnvId.value = globalEnvironments.value[0]?.id || null
+      }
     }
-    await saveProjectConfig()
   }
 
   // 14. 更新子项目配置 (包含环境变量与继承开关)
@@ -361,7 +421,25 @@ export const useProjectStore = defineStore('project', () => {
   // 15. 获取针对指定子项目的多层级有效变量 Map (主项目环境 -> 子项目覆盖)
   function getEffectiveVariableMap(subProjectDir?: string) {
     const sub = subProjectDir ? subProjects.value.find(s => s.dir_name === subProjectDir) : null
-    return resolveEffectiveVariableMap(projectConfig.value, sub?.config)
+    if (projectConfig.value) {
+      return resolveEffectiveVariableMap(projectConfig.value, sub?.config)
+    }
+
+    // 未打开项目目录时的独立全局变量 Map
+    const map = new Map<string, VariableSourceInfo>()
+    const active = activeEnvironment.value
+    if (active?.variables) {
+      for (const [k, v] of Object.entries(active.variables)) {
+        if (k.trim()) {
+          map.set(k.trim(), {
+            value: v,
+            source: 'project',
+            environmentName: active.name
+          })
+        }
+      }
+    }
+    return map
   }
 
   // 16. 动态插值解析字符串
@@ -378,6 +456,7 @@ export const useProjectStore = defineStore('project', () => {
     currentSubProjectDir,
     recentProjects,
     hasProject,
+    environments,
     activeEnvironment,
     pickAndOpenProject,
     loadProject,
@@ -385,6 +464,7 @@ export const useProjectStore = defineStore('project', () => {
     resolveEffectiveHeaders,
     saveProjectConfig,
     updateBaseUrl,
+    saveEnvironments,
     createSubProject,
     deleteSubProject,
     updateSubProjectConfig,

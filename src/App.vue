@@ -70,7 +70,7 @@
 
             <!-- 环境列表 -->
             <div
-              v-for="env in projectStore.projectConfig?.environments || []"
+              v-for="env in projectStore.environments"
               :key="env.id"
               @click="selectEnv(env.id)"
               class="flex items-center justify-between px-2 py-1.5 rounded cursor-pointer hover:bg-muted transition text-xs"
