@@ -113,8 +113,11 @@
         <div v-if="projectStore.subProjects.length > 0" class="px-3 py-1.5 bg-muted/20 border-b border-border/50 flex items-center justify-between text-[11px] text-muted-foreground shrink-0 select-none">
           <div class="flex items-center space-x-1.5">
             <span class="font-medium text-foreground/80">接口模块</span>
-            <span class="px-1.5 py-0.2 rounded-full bg-primary/10 text-primary text-[10px] font-mono font-medium">
-              {{ totalRequestsCount }} 个
+            <span
+              class="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-medium transition"
+              :class="searchQuery.trim() ? 'bg-amber-500/20 text-amber-400' : 'bg-primary/10 text-primary'"
+            >
+              {{ searchQuery.trim() ? `${matchedRequestsCount} / ${totalRequestsCount}` : `${totalRequestsCount} 个` }}
             </span>
           </div>
 
@@ -138,6 +141,29 @@
           </div>
         </div>
 
+        <!-- 接口实时搜索过滤栏 (Cmd/Ctrl + F) -->
+        <div v-if="projectStore.subProjects.length > 0" class="px-2.5 py-1.5 border-b border-border/50 bg-card/40 shrink-0">
+          <div class="relative flex items-center">
+            <Search class="w-3.5 h-3.5 text-muted-foreground/60 absolute left-2.5 pointer-events-none" />
+            <input
+              ref="searchInputRef"
+              v-model="searchQuery"
+              type="text"
+              placeholder="搜索接口名称、路径、Method... (Cmd+F)"
+              class="w-full pl-8 pr-7 py-1 text-xs rounded-md bg-muted/50 border border-border/60 focus:bg-background focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition text-foreground placeholder:text-muted-foreground/60 font-sans"
+              @keydown.esc="searchQuery = ''"
+            />
+            <button
+              v-if="searchQuery"
+              @click="searchQuery = ''"
+              class="absolute right-2 p-0.5 text-muted-foreground/60 hover:text-foreground rounded transition"
+              title="清空搜索 (Esc)"
+            >
+              <X class="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+
         <div class="flex-1 overflow-y-auto p-2 space-y-2">
         <div v-if="projectStore.subProjects.length === 0" class="p-4 text-center text-muted-foreground text-xs space-y-2">
           <div>暂无子项目模块</div>
@@ -149,8 +175,21 @@
           </button>
         </div>
 
+        <!-- 搜索无结果提示 -->
+        <div v-else-if="searchQuery.trim() && filteredSubProjects.length === 0" class="p-6 text-center text-xs text-muted-foreground space-y-2.5">
+          <SearchX class="w-8 h-8 opacity-40 mx-auto text-muted-foreground" />
+          <div class="text-foreground/90 font-medium">未找到匹配的接口</div>
+          <p class="text-[11px] text-muted-foreground">没有接口名称、路径或分组包含 “<span class="text-primary font-mono">{{ searchQuery }}</span>”</p>
+          <button
+            @click="searchQuery = ''"
+            class="px-2.5 py-1 rounded bg-muted hover:bg-muted/80 text-foreground text-xs transition"
+          >
+            清空搜索条件
+          </button>
+        </div>
+
         <div
-          v-for="sub in projectStore.subProjects"
+          v-for="sub in filteredSubProjects"
           :key="sub.dir_name"
           class="rounded-lg border border-border/80 bg-card/20 overflow-hidden"
         >
@@ -794,7 +833,7 @@ import { ref, computed, nextTick, watch } from 'vue'
 import {
   FolderTree, History, FolderOpen, FolderPlus, Plus, Trash2, ChevronRight, FolderCode,
   FileDown, RefreshCw, CheckCircle2, AlertCircle, Loader2, Settings2, Folder, FolderCog,
-  UnfoldVertical, FoldVertical, Edit3, AlertTriangle
+  UnfoldVertical, FoldVertical, Edit3, AlertTriangle, Search, SearchX, X
 } from 'lucide-vue-next'
 import { onKeyStroke } from '@vueuse/core'
 import { useProjectStore } from '@/stores/projectStore'
@@ -843,6 +882,51 @@ watch(
   },
   { immediate: true }
 )
+
+// 搜索过滤状态
+const searchQuery = ref('')
+const searchInputRef = ref<HTMLInputElement | null>(null)
+
+// 快捷键: Cmd/Ctrl + F 聚焦搜索框
+onKeyStroke('f', (e) => {
+  if (e.metaKey || e.ctrlKey) {
+    if (sidebarView.value === 'collections' && projectStore.hasProject) {
+      e.preventDefault()
+      searchInputRef.value?.focus()
+      searchInputRef.value?.select()
+    }
+  }
+})
+
+// 计算过滤后的子项目与请求列表 (按名称、路径、方法、分组匹配)
+const filteredSubProjects = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) {
+    return projectStore.subProjects
+  }
+
+  return projectStore.subProjects
+    .map(sub => {
+      const matchedRequests = sub.requests.filter(req => {
+        const nameMatch = req.name?.toLowerCase().includes(q)
+        const pathMatch = req.path?.toLowerCase().includes(q)
+        const methodMatch = req.method?.toLowerCase().includes(q)
+        const groupMatch = req.group?.toLowerCase().includes(q)
+        return Boolean(nameMatch || pathMatch || methodMatch || groupMatch)
+      })
+
+      return {
+        ...sub,
+        requests: matchedRequests
+      }
+    })
+    .filter(sub => sub.requests.length > 0)
+})
+
+// 搜索命中统计
+const matchedRequestsCount = computed(() => {
+  return filteredSubProjects.value.reduce((sum, s) => sum + s.requests.length, 0)
+})
 
 // 新建子项目弹窗状态
 const showNewSubprojectModal = ref(false)
@@ -903,6 +987,7 @@ function showToast(msg: string, isError = false) {
 }
 
 function isSubOpen(dir: string) {
+  if (searchQuery.value.trim()) return true
   return openSubprojects.value.has(dir)
 }
 
@@ -923,6 +1008,7 @@ interface RequestGroup {
 const collapsedGroups = ref<Set<string>>(new Set())
 
 function isGroupOpen(subDir: string, groupName: string) {
+  if (searchQuery.value.trim()) return true
   return !collapsedGroups.value.has(`${subDir}:${groupName}`)
 }
 
