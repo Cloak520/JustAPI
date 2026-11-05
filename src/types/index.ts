@@ -22,6 +22,7 @@ export interface ApiRequest {
   bodyType: BodyType
   bodyContent: string
   subProjectId?: string
+  fileName?: string
 }
 
 export interface ApiResponse {
@@ -59,5 +60,39 @@ export interface ProjectConfig {
   headers: KeyValuePair[]
   environments: Environment[]
   activeEnvironmentId?: string
+  swaggerSourceUrl?: string
 }
 
+export interface HistoryItem {
+  id: string
+  requestId?: string
+  name: string
+  method: string
+  url: string
+  status: number
+  durationMs: number
+  timestamp: number
+}
+
+export interface SubProjectData {
+  config: SubProjectConfig
+  dir_name: string
+  requests: ApiRequest[]
+}
+
+export interface FullProjectData {
+  path: string
+  config: ProjectConfig
+  sub_projects: SubProjectData[]
+  history: HistoryItem[]
+}
+
+export interface TabItem {
+  id: string
+  title: string
+  method: HttpMethod
+  isDirty: boolean
+  subProjectDir?: string
+  fileName?: string
+  requestId?: string
+}

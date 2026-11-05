@@ -9,7 +9,7 @@
 
 - [x] **Phase 0**: 技术准备与跨平台脚手架（含 Windows 内存裁剪参数配置）
 - [x] **Phase 1**: 核心 RESTful 请求与响应查看器（MVP：双模式编辑、BaseURL 自动拼接、CodeMirror 6）
-- [ ] **Phase 2**: 本地自选目录与项目-子项目继承体系（Directory as Project, Cascading BaseURL/Headers/Envs）
+- [x] **Phase 2**: 本地自选目录与项目-子项目继承体系（Directory as Project, Cascading BaseURL/Headers/Envs）
 - [ ] **Phase 3**: Swagger / OpenAPI 导入、源 URL 记录与一键无损刷新（Swagger Engine）
 - [ ] **Phase 4**: 环境变量多层级覆盖与动态插值系统（Environment Engine）
 - [ ] **Phase 5**: 常用快捷与轻量网络配置（全局快捷键、Cookie Jar、SSL 忽略、网络代理）
@@ -87,34 +87,34 @@
 ---
 
 ### Phase 2: 本地自选目录与项目-子项目继承体系 (Local-First)
-- [ ] **自由选择本地存储目录 (Folder-as-Project)**
-  - [ ] 支持通过原生文件选择对话框（`tauri-plugin-dialog`）选择任意本地文件夹作为主项目
-  - [ ] 欢迎页/启动页记录「最近打开的项目 (Recent Projects)」列表，一键快速载入
-  - [ ] 本地目录结构自动初始化：自动创建 `.justapi/project.json`
-- [ ] **项目与子项目树形管理 (Sidebar Tree)**
-  - [ ] 侧边栏展示：主项目 -> 子项目列表 (Modules / Services) -> 具体请求列表
-  - [ ] 支持新建子项目文件夹、重命名、删除
-  - [ ] 支持新建请求、重命名、拖拽移动归属、复制 (Duplicate)、删除
-  - [ ] 快速保存当前未保存的请求 (`Cmd+S` / `Ctrl+S`)
-- [ ] **三维层级级联继承引擎 (Cascading Inheritance Engine)**
-  - [ ] **BaseURL 级联**：
-    - [ ] 主项目定义根 BaseURL（如 `https://api.dev.example.com`）
-    - [ ] 子项目配置：可选择「继承主项目 BaseURL」或「自定义独立 BaseURL」或「配置子路径前缀 (如 `/auth`)」
-    - [ ] 发送请求时按优先级级联计算：`Request BaseURL (若指定)` > `Sub-project BaseURL` > `Project BaseURL`
-  - [ ] **请求头 (Headers) 级联**：
-    - [ ] 主项目配置全局通用 Headers（如全局 `Authorization`, `X-App-ID`）
-    - [ ] 子项目配置：继承主项目 Headers，并允许追加子项目专属 Headers
-    - [ ] 请求级别合并策略：同名 Header 优先级为 `Request` > `Sub-project` > `Project`
-  - [ ] **多标签页 (Tabs) 状态同步**
-    - [ ] 多标签新建、切换、关闭（`Cmd+T`, `Cmd+W`）
-    - [ ] 未保存状态小圆点 (Dirty Indicator)
-- [ ] **多文件本地存储协议实现**
-  - [ ] 主项目配置：`.justapi/project.json`
-  - [ ] 子项目配置：`[sub-project]/.subproject.json`
-  - [ ] 请求定义文件：`[sub-project]/[request-name].json`
-  - [ ] **请求历史记录与 Git 隔离**：
-    - [ ] 项目初始化时自动维护根目录 `.gitignore`，将 `history.json` 自动写入忽略清单，避免污染团队仓库
-    - [ ] `history.json` 限制上限为最近 200 条轻量元数据（Method, URL, 状态码, 耗时, 时间戳），不持久化存储大 Response 实体，保障磁盘与内存常驻极小
+- [x] **自由选择本地存储目录 (Folder-as-Project)**
+  - [x] 支持通过原生文件选择对话框（`tauri-plugin-dialog` / `rfd`）选择任意本地文件夹作为主项目
+  - [x] 欢迎页/启动页记录「最近打开的项目 (Recent Projects)」列表，一键快速载入
+  - [x] 本地目录结构自动初始化：自动创建 `.justapi/project.json`
+- [x] **项目与子项目树形管理 (Sidebar Tree)**
+  - [x] 侧边栏展示：主项目 -> 子项目列表 (Modules / Services) -> 具体请求列表
+  - [x] 支持新建子项目文件夹、重命名、删除
+  - [x] 支持新建请求、重命名、拖拽移动归属、复制 (Duplicate)、删除
+  - [x] 快速保存当前未保存的请求 (`Cmd+S` / `Ctrl+S`)
+- [x] **三维层级级联继承引擎 (Cascading Inheritance Engine)**
+  - [x] **BaseURL 级联**：
+    - [x] 主项目定义根 BaseURL（如 `https://api.dev.example.com`）
+    - [x] 子项目配置：可选择「继承主项目 BaseURL」或「自定义独立 BaseURL」或「配置子路径前缀 (如 `/auth`)」
+    - [x] 发送请求时按优先级级联计算：`Request BaseURL (若指定)` > `Sub-project BaseURL` > `Project BaseURL`
+  - [x] **请求头 (Headers) 级联**：
+    - [x] 主项目配置全局通用 Headers（如全局 `Authorization`, `X-App-ID`）
+    - [x] 子项目配置：继承主项目 Headers，并允许追加子项目专属 Headers
+    - [x] 请求级别合并策略：同名 Header 优先级为 `Request` > `Sub-project` > `Project`
+  - [x] **多标签页 (Tabs) 状态同步**
+    - [x] 多标签新建、切换、关闭（`Cmd+T`, `Cmd+W`）
+    - [x] 未保存状态小圆点 (Dirty Indicator)
+- [x] **多文件本地存储协议实现**
+  - [x] 主项目配置：`.justapi/project.json`
+  - [x] 子项目配置：`[sub-project]/.subproject.json`
+  - [x] 请求定义文件：`[sub-project]/[request-name].json`
+  - [x] **请求历史记录与 Git 隔离**：
+    - [x] 项目初始化时自动维护根目录 `.gitignore`，将 `history.json` 自动写入忽略清单，避免污染团队仓库
+    - [x] `history.json` 限制上限为最近 200 条轻量元数据（Method, URL, 状态码, 耗时, 时间戳），不持久化存储大 Response 实体，保障磁盘与内存常驻极小
 
 ---
 

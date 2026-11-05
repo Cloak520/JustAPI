@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import type { HttpMethod, BodyType, KeyValuePair, ApiResponse } from '@/types'
 import { extractPathVariables } from '@/utils/parser'
+import { useProjectStore } from './projectStore'
 
 export const useRequestStore = defineStore('request', () => {
   // 当前请求基础状态
@@ -122,6 +123,22 @@ export const useRequestStore = defineStore('request', () => {
         isTruncated: res.is_truncated,
         timestamp: Date.now()
       }
+
+      // 自动追加到历史记录
+      try {
+        const projStore = useProjectStore()
+        projStore.recordHistory({
+          id: crypto.randomUUID(),
+          name: path.value,
+          method: method.value,
+          url: resolvedUrl.value,
+          status: res.status,
+          durationMs: res.duration_ms,
+          timestamp: Date.now()
+        })
+      } catch (e) {
+        // ignore history error
+      }
     } catch (err: any) {
       errorMessage.value = err?.message || String(err)
     } finally {
@@ -170,3 +187,4 @@ export const useRequestStore = defineStore('request', () => {
     minifyJson
   }
 })
+
