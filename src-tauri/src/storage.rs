@@ -78,6 +78,30 @@ pub struct EnvironmentItem {
     pub variables: HashMap<String, String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkSettingsItem {
+    #[serde(default, alias = "dangerously_disable_ssl")]
+    pub dangerously_disable_ssl: bool,
+    #[serde(default, alias = "enable_proxy")]
+    pub enable_proxy: bool,
+    #[serde(default, alias = "proxy_url")]
+    pub proxy_url: String,
+    #[serde(default = "default_true", alias = "enable_cookie_jar")]
+    pub enable_cookie_jar: bool,
+}
+
+impl Default for NetworkSettingsItem {
+    fn default() -> Self {
+        Self {
+            dangerously_disable_ssl: false,
+            enable_proxy: false,
+            proxy_url: "http://127.0.0.1:7890".to_string(),
+            enable_cookie_jar: true,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectMetadata {
@@ -92,6 +116,8 @@ pub struct ProjectMetadata {
     pub active_environment_id: Option<String>,
     #[serde(default, alias = "swagger_source_url")]
     pub swagger_source_url: Option<String>,
+    #[serde(default, alias = "network_settings")]
+    pub network_settings: Option<NetworkSettingsItem>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -204,6 +230,7 @@ pub fn load_project_from_dir(path_str: &str) -> Result<FullProjectData, String> 
             ],
             active_environment_id: Some("env_dev".to_string()),
             swagger_source_url: None,
+            network_settings: Some(NetworkSettingsItem::default()),
         };
         let formatted = serde_json::to_string_pretty(&default_config)
             .map_err(|e| format!("序列化 project.json 失败: {}", e))?;
@@ -519,13 +546,28 @@ mod tests {
         assert_eq!(user_req.file_name, Some("用户管理/get_user.json".to_string()));
         assert_eq!(loaded.history.len(), 1);
 
-        // 6. 测试更新主目录 BaseURL 并持久化至 .justapi/project.json
+        // 6. 测试更新主目录 BaseURL 与网络设置并持久化至 .justapi/project.json
         let mut proj_config = loaded.config.clone();
         proj_config.base_url = "https://api.myproject.com".to_string();
+        proj_config.network_settings = Some(NetworkSettingsItem {
+            dangerously_disable_ssl: true,
+            enable_proxy: true,
+            proxy_url: "http://127.0.0.1:9090".to_string(),
+            enable_cookie_jar: false,
+        });
         save_project_config(&path_str, proj_config).unwrap();
 
         let reloaded = load_project_from_dir(&path_str).unwrap();
         assert_eq!(reloaded.config.base_url, "https://api.myproject.com");
+        assert_eq!(
+            reloaded.config.network_settings,
+            Some(NetworkSettingsItem {
+                dangerously_disable_ssl: true,
+                enable_proxy: true,
+                proxy_url: "http://127.0.0.1:9090".to_string(),
+                enable_cookie_jar: false,
+            })
+        );
 
         // 清理临时测试目录
         let _ = fs::remove_dir_all(temp_dir);

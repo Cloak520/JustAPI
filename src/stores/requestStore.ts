@@ -17,6 +17,18 @@ export const useRequestStore = defineStore('request', () => {
     enableCookieJar: true
   })
 
+  // 监听网络设置变动，若已打开项目，自动持久化至当前项目的 project.json
+  watch(
+    networkSettings,
+    async (newVal) => {
+      const projectStore = useProjectStore()
+      if (projectStore.hasProject && projectStore.projectConfig) {
+        await projectStore.updateNetworkSettings(newVal)
+      }
+    },
+    { deep: true }
+  )
+
   // 内存/会话 Cookie Jar 列表
   const sessionCookies = useStorage<CookieItem[]>('justapi_session_cookies', [])
   // 当前请求基础状态

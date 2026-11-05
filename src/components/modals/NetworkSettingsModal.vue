@@ -222,8 +222,18 @@
         </div>
       </div>
 
-      <!-- 底部关闭栏 -->
-      <div class="flex items-center justify-end px-5 py-3 border-t border-border bg-muted/40 shrink-0">
+      <!-- 底部关闭栏与同步指示器 -->
+      <div class="flex items-center justify-between px-5 py-3 border-t border-border bg-muted/40 shrink-0">
+        <div class="flex items-center space-x-1.5 text-xs">
+          <span v-if="projectStore.hasProject" class="flex items-center space-x-1 text-emerald-400 font-medium">
+            <CheckCircle2 class="w-3.5 h-3.5" />
+            <span>配置已自动保存至 project.json</span>
+          </span>
+          <span v-else class="text-muted-foreground text-[11px]">
+            未关联项目（当前保存为全局默认设置）
+          </span>
+        </div>
+
         <button
           @click="close"
           class="px-4 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-xs transition shadow-sm"
@@ -237,8 +247,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { X, SlidersHorizontal, Plus, Trash2 } from 'lucide-vue-next'
+import { X, SlidersHorizontal, Plus, Trash2, CheckCircle2 } from 'lucide-vue-next'
 import { useRequestStore } from '@/stores/requestStore'
+import { useProjectStore } from '@/stores/projectStore'
 
 const props = defineProps<{
   modelValue: boolean
@@ -254,6 +265,7 @@ const isOpen = computed({
 })
 
 const store = useRequestStore()
+const projectStore = useProjectStore()
 const activeTab = ref<'network' | 'cookies'>('network')
 
 const showAddCookie = ref(false)

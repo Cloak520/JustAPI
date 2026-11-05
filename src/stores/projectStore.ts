@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useStorage } from '@vueuse/core'
-import type { FullProjectData, ProjectConfig, SubProjectData, SubProjectConfig, ApiRequest, HistoryItem, KeyValuePair, Environment } from '@/types'
+import type { FullProjectData, ProjectConfig, SubProjectData, SubProjectConfig, ApiRequest, HistoryItem, KeyValuePair, Environment, NetworkSettings } from '@/types'
 import { resolveEffectiveVariableMap, interpolate as interpolateText, type VariableSourceInfo } from '@/utils/interpolation'
 import { useRequestStore } from './requestStore'
 
@@ -66,6 +66,12 @@ export const useProjectStore = defineStore('project', () => {
       if (data.config.baseUrl) {
         const reqStore = useRequestStore()
         reqStore.baseUrl = data.config.baseUrl
+      }
+
+      // 同步主项目中的网络设置至当前请求 store
+      if (data.config.networkSettings) {
+        const reqStore = useRequestStore()
+        reqStore.networkSettings = { ...data.config.networkSettings }
       }
 
       // 更新最近项目列表
@@ -171,6 +177,13 @@ export const useProjectStore = defineStore('project', () => {
 
     const reqStore = useRequestStore()
     reqStore.baseUrl = cleanUrl
+  }
+
+  // 5.2 自动保存并同步网络设置到 project.json
+  async function updateNetworkSettings(settings: NetworkSettings) {
+    if (!projectPath.value || !projectConfig.value) return
+    projectConfig.value.networkSettings = { ...settings }
+    await saveProjectConfig()
   }
 
   // 6. 创建子项目
@@ -464,6 +477,7 @@ export const useProjectStore = defineStore('project', () => {
     resolveEffectiveHeaders,
     saveProjectConfig,
     updateBaseUrl,
+    updateNetworkSettings,
     saveEnvironments,
     createSubProject,
     deleteSubProject,

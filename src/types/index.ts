@@ -78,6 +78,7 @@ export interface ProjectConfig {
   environments: Environment[]
   activeEnvironmentId?: string
   swaggerSourceUrl?: string
+  networkSettings?: NetworkSettings
 }
 
 export interface HistoryItem {
