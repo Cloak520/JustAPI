@@ -1,7 +1,7 @@
 <template>
   <div class="flex flex-col h-screen w-screen bg-background text-foreground select-none overflow-hidden">
     <!-- 顶部导航栏 / 窗口控制区 (支持 macOS 原生拖拽移动) -->
-    <header class="flex items-center justify-between px-3 h-10 border-b border-border bg-card/60 backdrop-blur shrink-0" data-tauri-drag-region>
+    <header class="relative z-30 flex items-center justify-between px-3 h-10 border-b border-border bg-card/60 backdrop-blur shrink-0" data-tauri-drag-region>
       <div class="flex items-center space-x-2">
         <!-- 侧边栏折叠切换按钮 (Cmd/Ctrl + \) -->
         <button
@@ -37,7 +37,7 @@
       <!-- 右侧：环境变量快速切换 + 保存当前接口与快捷动作 -->
       <div class="flex items-center space-x-2 text-xs">
         <!-- 环境变量下拉切换器 -->
-        <div class="relative">
+        <div ref="envDropdownRef" class="relative">
           <button
             @click="showEnvDropdown = !showEnvDropdown"
             class="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-muted/80 hover:bg-muted text-foreground text-[11px] font-medium transition border border-border/60"
@@ -51,12 +51,7 @@
           <!-- 环境下拉面板 -->
           <div
             v-if="showEnvDropdown"
-            class="fixed inset-0 z-40"
-            @click="showEnvDropdown = false"
-          />
-          <div
-            v-if="showEnvDropdown"
-            class="absolute right-0 top-full mt-1.5 w-48 rounded-lg border border-border bg-popover p-1 shadow-lg z-50 text-xs animate-in fade-in zoom-in-95"
+            class="absolute right-0 top-full mt-1.5 w-52 rounded-xl border border-border bg-card p-1.5 shadow-2xl z-50 text-xs animate-in fade-in zoom-in-95"
             @click.stop
           >
             <div class="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -183,7 +178,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { PanelLeft, Save, Globe, ChevronDown, Check, Settings, SlidersHorizontal, Minus, Square, X } from 'lucide-vue-next'
-import { onKeyStroke } from '@vueuse/core'
+import { onKeyStroke, onClickOutside } from '@vueuse/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useRequestStore } from '@/stores/requestStore'
 import { useProjectStore } from '@/stores/projectStore'
@@ -203,9 +198,14 @@ const tabStore = useTabStore()
 
 const isMac = ref(typeof navigator !== 'undefined' && /macintosh|mac os x/i.test(navigator.userAgent))
 const sidebarVisible = ref(true)
+const envDropdownRef = ref<HTMLElement | null>(null)
 const showEnvDropdown = ref(false)
 const showEnvModal = ref(false)
 const showNetworkModal = ref(false)
+
+onClickOutside(envDropdownRef, () => {
+  showEnvDropdown.value = false
+})
 
 async function minimizeWindow() {
   try {
