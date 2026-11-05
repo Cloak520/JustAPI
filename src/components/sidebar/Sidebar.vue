@@ -812,13 +812,12 @@ const sidebarView = ref<'collections' | 'history'>('collections')
 const openSubprojects = ref<Set<string>>(new Set())
 const showProjectSettingsModal = ref(false)
 
-// 加载进入项目时，默认树保持折叠（子项目与内部各接口分组均默认收起）
+// 加载进入项目时：侧边栏子项目模块保持展开，内部的接口树（各个接口分组/目录）默认折叠收起
 const hasInitializedTree = ref(false)
 watch(
   () => projectStore.projectPath,
   () => {
     hasInitializedTree.value = false
-    openSubprojects.value.clear()
     collapsedGroups.value.clear()
   }
 )
@@ -826,11 +825,11 @@ watch(
   () => projectStore.subProjects,
   (subs) => {
     if (!hasInitializedTree.value && subs && subs.length > 0) {
-      // 1. 子项目默认保持折叠收起
-      openSubprojects.value.clear()
-
-      // 2. 子项目内部的各接口分组目录也默认折叠收起
       for (const sub of subs) {
+        // 1. 侧边栏子项目保持展开，不折叠
+        openSubprojects.value.add(sub.dir_name)
+
+        // 2. 接口树（子项目内部的所有分组与分类目录）默认折叠收起
         const { groups, ungrouped } = getSubProjectGroups(sub.requests)
         for (const grp of groups) {
           collapsedGroups.value.add(`${sub.dir_name}:${grp.name}`)
