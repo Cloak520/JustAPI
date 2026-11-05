@@ -25,12 +25,28 @@ export interface ApiRequest {
   fileName?: string
 }
 
+export interface CookieItem {
+  name: string
+  value: string
+  domain?: string
+  path?: string
+  raw: string
+}
+
+export interface NetworkSettings {
+  dangerouslyDisableSsl: boolean
+  enableProxy: boolean
+  proxyUrl: string
+  enableCookieJar: boolean
+}
+
 export interface ApiResponse {
   status: number
   statusText: string
   durationMs: number
   sizeBytes: number
   headers: Record<string, string>
+  cookies?: CookieItem[]
   body: string
   timestamp: number
   isTruncated?: boolean

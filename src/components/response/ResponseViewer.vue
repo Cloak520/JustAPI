@@ -21,6 +21,16 @@
             {{ headerCount }}
           </span>
         </button>
+        <button
+          @click="activeTab = 'cookies'"
+          :class="activeTab === 'cookies' ? 'text-primary font-medium border-b-2 border-primary bg-muted/30' : 'text-muted-foreground hover:text-foreground'"
+          class="px-3 py-1.5 rounded-t-md transition flex items-center space-x-1"
+        >
+          <span>Cookies</span>
+          <span v-if="cookieCount > 0" class="text-[10px] px-1 py-0.2 rounded-full bg-muted font-mono">
+            {{ cookieCount }}
+          </span>
+        </button>
       </div>
 
       <!-- 右侧指标状态展示 (Status Code, Duration, Size) -->
@@ -118,7 +128,7 @@
         </div>
 
         <!-- 2. Headers 视图 -->
-        <div v-else class="h-full overflow-y-auto">
+        <div v-else-if="activeTab === 'headers'" class="h-full overflow-y-auto">
           <div class="border border-border rounded-lg overflow-hidden bg-card/40 text-xs font-mono">
             <div class="grid grid-cols-[200px_1fr] bg-muted/40 border-b border-border font-medium text-muted-foreground px-3 py-1.5 select-none">
               <div>Header Name</div>
@@ -132,6 +142,31 @@
               >
                 <div class="text-muted-foreground font-semibold">{{ key }}</div>
                 <div class="text-foreground">{{ val }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Cookies 视图 -->
+        <div v-else class="h-full overflow-y-auto">
+          <div class="border border-border rounded-lg overflow-hidden bg-card/40 text-xs font-mono">
+            <div class="grid grid-cols-[160px_160px_1fr] bg-muted/40 border-b border-border font-medium text-muted-foreground px-3 py-1.5 select-none">
+              <div>Cookie Name</div>
+              <div>Domain / Path</div>
+              <div>Value</div>
+            </div>
+            <div class="divide-y divide-border/60">
+              <div
+                v-for="(c, idx) in store.response.cookies || []"
+                :key="idx"
+                class="grid grid-cols-[160px_160px_1fr] px-3 py-1.5 hover:bg-muted/20 transition break-all"
+              >
+                <div class="text-muted-foreground font-semibold">{{ c.name }}</div>
+                <div class="text-muted-foreground text-[11px]">{{ c.domain || '*' }}{{ c.path || '' }}</div>
+                <div class="text-foreground" :title="c.raw">{{ c.value }}</div>
+              </div>
+              <div v-if="!store.response.cookies || store.response.cookies.length === 0" class="p-6 text-center text-xs text-muted-foreground font-sans">
+                服务端未返回 Set-Cookie 响应头
               </div>
             </div>
           </div>
@@ -154,11 +189,15 @@ import { useRequestStore } from '@/stores/requestStore'
 import CodeEditor from '@/components/common/CodeEditor.vue'
 
 const store = useRequestStore()
-const activeTab = ref<'body' | 'headers'>('body')
+const activeTab = ref<'body' | 'headers' | 'cookies'>('body')
 const copied = ref(false)
 
 const headerCount = computed(() => {
   return store.response ? Object.keys(store.response.headers).length : 0
+})
+
+const cookieCount = computed(() => {
+  return store.response?.cookies ? store.response.cookies.length : 0
 })
 
 const isJson = computed(() => {

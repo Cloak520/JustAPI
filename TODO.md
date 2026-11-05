@@ -155,17 +155,17 @@
 ---
 
 ### Phase 5: 常用快捷与轻量网络配置 (RESTful 专精)
-- [ ] **常用桌面全局快捷键**
-  - [ ] `Cmd/Ctrl + Enter`: 发送当前请求
-  - [ ] `Cmd/Ctrl + S`: 保存当前请求
-  - [ ] `Cmd/Ctrl + T`: 新建标签页
-  - [ ] `Cmd/Ctrl + W`: 关闭当前标签页
-  - [ ] `Cmd/Ctrl + \`: 展开/收起左侧边栏
-  - [ ] `Cmd/Ctrl + R`: 刷新当前子项目的 Swagger API
-- [ ] **轻量 RESTful 网络进阶**
-  - [ ] **Cookie 管理 (Cookie Jar)**：支持自动捕获与携带会话 Cookie，提供可视化查看与清除按钮
-  - [ ] **SSL / TLS 控制**：支持单请求或全局开启「忽略 SSL 证书校验」，完美解决本地自签名证书调试痛点
-  - [ ] **网络代理 (Proxy)**：支持配置本地 HTTP/SOCKS5 代理或跟随系统设置
+- [x] **常用桌面全局快捷键**
+  - [x] `Cmd/Ctrl + Enter`: 发送当前请求
+  - [x] `Cmd/Ctrl + S`: 保存当前请求
+  - [x] `Cmd/Ctrl + T`: 新建标签页
+  - [x] `Cmd/Ctrl + W`: 关闭当前标签页
+  - [x] `Cmd/Ctrl + \`: 展开/收起左侧边栏
+  - [x] `Cmd/Ctrl + R`: 刷新当前子项目的 Swagger API
+- [x] **轻量 RESTful 网络进阶**
+  - [x] **Cookie 管理 (Cookie Jar)**：支持自动捕获与携带会话 Cookie，提供可视化查看与清除按钮
+  - [x] **SSL / TLS 控制**：支持单请求或全局开启「忽略 SSL 证书校验」，完美解决本地自签名证书调试痛点
+  - [x] **网络代理 (Proxy)**：支持配置本地 HTTP/SOCKS5 代理或跟随系统设置
 
 ---
 

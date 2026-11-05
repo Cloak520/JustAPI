@@ -1,13 +1,24 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import type { HttpMethod, BodyType, KeyValuePair, ApiResponse } from '@/types'
+import { useStorage } from '@vueuse/core'
+import type { HttpMethod, BodyType, KeyValuePair, ApiResponse, CookieItem, NetworkSettings } from '@/types'
 import { extractPathVariables } from '@/utils/parser'
 import { interpolate, inspectInterpolationTokens } from '@/utils/interpolation'
 import { useProjectStore } from './projectStore'
 import { useTabStore } from './tabStore'
 
 export const useRequestStore = defineStore('request', () => {
+  // 极简网络与 Cookie 配置
+  const networkSettings = useStorage<NetworkSettings>('justapi_network_settings', {
+    dangerouslyDisableSsl: false,
+    enableProxy: false,
+    proxyUrl: 'http://127.0.0.1:7890',
+    enableCookieJar: true
+  })
+
+  // 内存/会话 Cookie Jar 列表
+  const sessionCookies = useStorage<CookieItem[]>('justapi_session_cookies', [])
   // 当前请求基础状态
   const method = ref<HttpMethod>('GET')
   const baseUrl = ref('https://httpbin.org')
@@ -144,14 +155,40 @@ export const useRequestStore = defineStore('request', () => {
         finalBody = interpolate(bodyContent.value, varMap)
       }
 
+      // 5. 如果开启了 Cookie Jar，且请求头中未显式包含 Cookie，自动注入匹配域名的 Cookie
+      if (networkSettings.value.enableCookieJar && sessionCookies.value.length > 0) {
+        const hasManualCookie = validHeaders.some(([k]) => k.toLowerCase() === 'cookie')
+        if (!hasManualCookie) {
+          try {
+            const urlObj = new URL(finalUrl)
+            const host = urlObj.hostname
+            const matchingCookies = sessionCookies.value.filter(c => {
+              if (!c.domain) return true
+              const cleanDomain = c.domain.replace(/^\./, '').toLowerCase()
+              return host.toLowerCase() === cleanDomain || host.toLowerCase().endsWith('.' + cleanDomain)
+            })
+            if (matchingCookies.length > 0) {
+              const cookieHeaderVal = matchingCookies.map(c => `${c.name}=${c.value}`).join('; ')
+              validHeaders.push(['Cookie', cookieHeaderVal])
+            }
+          } catch {
+            // ignore URL parse error
+          }
+        }
+      }
+
       const payload = {
         url: finalUrl,
         method: method.value,
         headers: validHeaders,
-        body_type: bodyType.value,
-        body_content: finalBody,
-        form_fields: ['form-data', 'x-www-form-urlencoded'].includes(bodyType.value) ? validFormFields : null,
-        timeout_ms: 30000
+        bodyType: bodyType.value,
+        bodyContent: finalBody,
+        formFields: ['form-data', 'x-www-form-urlencoded'].includes(bodyType.value) ? validFormFields : null,
+        timeoutMs: 30000,
+        dangerouslyDisableSsl: networkSettings.value.dangerouslyDisableSsl,
+        proxyUrl: networkSettings.value.enableProxy && networkSettings.value.proxyUrl.trim()
+          ? networkSettings.value.proxyUrl.trim()
+          : undefined
       }
 
       const res = await invoke<any>('send_rest_request', { payload })
@@ -161,9 +198,36 @@ export const useRequestStore = defineStore('request', () => {
         durationMs: res.duration_ms,
         sizeBytes: res.size_bytes,
         headers: Object.fromEntries(res.headers),
+        cookies: res.cookies || [],
         body: res.body,
         isTruncated: res.is_truncated,
         timestamp: Date.now()
+      }
+
+      // 如果启用了 Cookie Jar，将服务端 Set-Cookie 返回的 Cookie 自动同步存入 sessionCookies
+      if (networkSettings.value.enableCookieJar && res.cookies && res.cookies.length > 0) {
+        let defaultDomain = ''
+        try {
+          defaultDomain = new URL(finalUrl).hostname
+        } catch {
+          // ignore
+        }
+
+        for (const newCookie of res.cookies as CookieItem[]) {
+          const cookieDomain = newCookie.domain || defaultDomain
+          const existingIdx = sessionCookies.value.findIndex(
+            c => c.name === newCookie.name && (c.domain || defaultDomain) === cookieDomain
+          )
+          const cookieToStore = {
+            ...newCookie,
+            domain: cookieDomain
+          }
+          if (existingIdx !== -1) {
+            sessionCookies.value[existingIdx] = cookieToStore
+          } else {
+            sessionCookies.value.push(cookieToStore)
+          }
+        }
       }
 
       // 自动追加到历史记录
@@ -209,7 +273,24 @@ export const useRequestStore = defineStore('request', () => {
     }
   }
 
+  function clearCookies() {
+    sessionCookies.value = []
+  }
+
+  function removeCookie(index: number) {
+    sessionCookies.value.splice(index, 1)
+  }
+
+  function addCookie(cookie: CookieItem) {
+    sessionCookies.value.push(cookie)
+  }
+
   return {
+    networkSettings,
+    sessionCookies,
+    clearCookies,
+    removeCookie,
+    addCookie,
     method,
     baseUrl,
     path,

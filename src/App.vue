@@ -97,6 +97,17 @@
           </div>
         </div>
 
+        <!-- 网络与 Cookie 设置按钮 -->
+        <button
+          @click="showNetworkModal = true"
+          class="flex items-center space-x-1 px-2.5 py-1 rounded bg-muted/80 hover:bg-muted text-foreground text-[11px] font-medium transition border border-border/60"
+          :class="store.networkSettings.dangerouslyDisableSsl || store.networkSettings.enableProxy ? 'text-amber-400 border-amber-500/40' : ''"
+          title="网络、SSL 证书与 Cookie 配置"
+        >
+          <SlidersHorizontal class="w-3.5 h-3.5" />
+          <span class="hidden sm:inline">网络</span>
+        </button>
+
         <button
           @click="saveCurrentRequest"
           class="flex items-center space-x-1 px-2.5 py-1 rounded bg-muted hover:bg-muted/80 text-foreground text-[11px] font-medium transition"
@@ -110,6 +121,9 @@
 
     <!-- 环境变量管理模态框 -->
     <EnvironmentModal v-model="showEnvModal" />
+
+    <!-- 网络与 Cookie 设置模态框 -->
+    <NetworkSettingsModal v-model="showNetworkModal" />
 
     <!-- 主工作区：左侧边栏 (项目与子项目树) + 右侧标签页与构建器 -->
     <div class="flex-1 flex overflow-hidden">
@@ -142,7 +156,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { PanelLeft, Save, Globe, ChevronDown, Check, Settings } from 'lucide-vue-next'
+import { PanelLeft, Save, Globe, ChevronDown, Check, Settings, SlidersHorizontal } from 'lucide-vue-next'
 import { onKeyStroke } from '@vueuse/core'
 import { useRequestStore } from '@/stores/requestStore'
 import { useProjectStore } from '@/stores/projectStore'
@@ -153,6 +167,7 @@ import UrlBar from '@/components/request/UrlBar.vue'
 import RequestBuilder from '@/components/request/RequestBuilder.vue'
 import ResponseViewer from '@/components/response/ResponseViewer.vue'
 import EnvironmentModal from '@/components/modals/EnvironmentModal.vue'
+import NetworkSettingsModal from '@/components/modals/NetworkSettingsModal.vue'
 import type { ApiRequest } from '@/types'
 
 const store = useRequestStore()
@@ -162,6 +177,7 @@ const tabStore = useTabStore()
 const sidebarVisible = ref(true)
 const showEnvDropdown = ref(false)
 const showEnvModal = ref(false)
+const showNetworkModal = ref(false)
 
 function selectEnv(id: string | null) {
   projectStore.setActiveEnvironment(id)
@@ -251,6 +267,32 @@ onKeyStroke('\\', (e) => {
   if (e.metaKey || e.ctrlKey) {
     e.preventDefault()
     sidebarVisible.value = !sidebarVisible.value
+  }
+})
+
+// 快捷键: Cmd/Ctrl + Enter 发送请求
+onKeyStroke('Enter', (e) => {
+  if (e.metaKey || e.ctrlKey) {
+    e.preventDefault()
+    store.send()
+  }
+})
+
+// 快捷键: Cmd/Ctrl + R 刷新当前子项目的 Swagger API
+onKeyStroke('r', (e) => {
+  if (e.metaKey || e.ctrlKey) {
+    e.preventDefault()
+    if (projectStore.currentSubProjectDir) {
+      projectStore.refreshSwagger(projectStore.currentSubProjectDir)
+    }
+  }
+})
+
+// 快捷键: Shift + Alt + F 单次按需美化 JSON Body
+onKeyStroke('F', (e) => {
+  if (e.shiftKey && e.altKey) {
+    e.preventDefault()
+    store.formatJson()
   }
 })
 </script>
