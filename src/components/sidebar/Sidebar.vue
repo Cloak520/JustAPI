@@ -130,7 +130,7 @@
             <button
               @click="collapseAllTree"
               class="flex items-center space-x-1 px-1.5 py-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition text-[10px]"
-              title="全部折叠所有模块"
+              title="全部折叠接口分组 (子项目保持展开)"
             >
               <FoldVertical class="w-3 h-3 text-muted-foreground" />
               <span>折叠全部</span>
@@ -283,45 +283,64 @@
                 </div>
               </div>
 
-              <!-- 未分组的请求 (若有) -->
-              <div v-if="getSubProjectGroups(sub.requests).ungrouped.length > 0" class="pt-1">
-                <div class="px-2 py-0.5 text-[9px] text-muted-foreground/60 font-semibold uppercase tracking-wider">
-                  其他接口
-                </div>
+              <!-- 未分组的请求 (若有，作为"其他接口"分组折叠管理) -->
+              <div v-if="getSubProjectGroups(sub.requests).ungrouped.length > 0" class="py-0.5">
                 <div
-                  v-for="req in getSubProjectGroups(sub.requests).ungrouped"
-                  :key="req.id || req.fileName"
-                  @click="tabStore.openTab(req, sub.dir_name)"
-                  class="flex items-center justify-between py-1.5 pr-2 pl-1 cursor-pointer hover:bg-muted/40 transition group"
+                  @click="toggleGroup(sub.dir_name, '__other__')"
+                  class="flex items-center justify-between py-1 px-1.5 rounded cursor-pointer hover:bg-muted/50 transition group/grp text-muted-foreground hover:text-foreground select-none"
                 >
-                  <div class="flex items-center space-x-2 truncate">
-                    <span class="font-mono font-bold text-[10px]" :class="getMethodColor(req.method)">
-                      {{ req.method }}
-                    </span>
-                    <span
-                      class="truncate text-[11px] font-medium"
-                      :class="req.name.includes('[已下线]') ? 'text-muted-foreground line-through opacity-70' : 'text-foreground/90'"
-                      :title="req.name || req.path"
-                    >
-                      {{ req.name || req.path }}
-                    </span>
+                  <div class="flex items-center space-x-1.5 truncate">
+                    <ChevronRight
+                      class="w-3 h-3 text-muted-foreground/60 transition-transform duration-150"
+                      :class="isGroupOpen(sub.dir_name, '__other__') ? 'rotate-90' : ''"
+                    />
+                    <Folder class="w-3.5 h-3.5 text-muted-foreground/70 shrink-0" />
+                    <span class="font-medium text-[11px] truncate">其他接口</span>
                   </div>
+                  <span class="text-[9px] text-muted-foreground font-mono bg-muted/80 px-1.5 py-0.2 rounded-full">
+                    {{ getSubProjectGroups(sub.requests).ungrouped.length }}
+                  </span>
+                </div>
 
-                  <div class="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition shrink-0" @click.stop>
-                    <button
-                      @click.stop="promptRenameRequest(sub.dir_name, req)"
-                      class="p-0.5 rounded text-muted-foreground/60 hover:text-primary transition"
-                      title="重命名接口"
-                    >
-                      <Edit3 class="w-3 h-3" />
-                    </button>
-                    <button
-                      @click.stop="promptDeleteRequest(sub.dir_name, req)"
-                      class="p-0.5 rounded text-muted-foreground/60 hover:text-destructive transition"
-                      title="删除接口"
-                    >
-                      <Trash2 class="w-3 h-3" />
-                    </button>
+                <div
+                  v-if="isGroupOpen(sub.dir_name, '__other__')"
+                  class="pl-3.5 divide-y divide-border/20 border-l border-border/40 ml-2.5 my-0.5"
+                >
+                  <div
+                    v-for="req in getSubProjectGroups(sub.requests).ungrouped"
+                    :key="req.id || req.fileName"
+                    @click="tabStore.openTab(req, sub.dir_name)"
+                    class="flex items-center justify-between py-1.5 pr-2 pl-1 cursor-pointer hover:bg-muted/40 transition group"
+                  >
+                    <div class="flex items-center space-x-2 truncate">
+                      <span class="font-mono font-bold text-[10px]" :class="getMethodColor(req.method)">
+                        {{ req.method }}
+                      </span>
+                      <span
+                        class="truncate text-[11px] font-medium"
+                        :class="req.name.includes('[已下线]') ? 'text-muted-foreground line-through opacity-70' : 'text-foreground/90'"
+                        :title="req.name || req.path"
+                      >
+                        {{ req.name || req.path }}
+                      </span>
+                    </div>
+
+                    <div class="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition shrink-0" @click.stop>
+                      <button
+                        @click.stop="promptRenameRequest(sub.dir_name, req)"
+                        class="p-0.5 rounded text-muted-foreground/60 hover:text-primary transition"
+                        title="重命名接口"
+                      >
+                        <Edit3 class="w-3 h-3" />
+                      </button>
+                      <button
+                        @click.stop="promptDeleteRequest(sub.dir_name, req)"
+                        class="p-0.5 rounded text-muted-foreground/60 hover:text-destructive transition"
+                        title="删除接口"
+                      >
+                        <Trash2 class="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -732,7 +751,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import {
   FolderTree, History, FolderOpen, FolderPlus, Plus, Trash2, ChevronRight, FolderCode,
   FileDown, RefreshCw, CheckCircle2, AlertCircle, Loader2, Settings2, Folder, FolderCog,
@@ -753,6 +772,19 @@ const requestStore = useRequestStore()
 const sidebarView = ref<'collections' | 'history'>('collections')
 const openSubprojects = ref<Set<string>>(new Set())
 const showProjectSettingsModal = ref(false)
+
+// 默认保持所有子项目展开状态
+watch(
+  () => projectStore.subProjects,
+  (subs) => {
+    if (subs && subs.length > 0) {
+      for (const sub of subs) {
+        openSubprojects.value.add(sub.dir_name)
+      }
+    }
+  },
+  { immediate: true }
+)
 
 // 新建子项目弹窗状态
 const showNewSubprojectModal = ref(false)
@@ -972,7 +1004,17 @@ function expandAllTree() {
 }
 
 function collapseAllTree() {
-  openSubprojects.value.clear()
+  // 折叠时，子项目不折叠：所有子项目保持展开，将子项目内部的各个接口分组/目录全部折叠
+  for (const sub of projectStore.subProjects) {
+    openSubprojects.value.add(sub.dir_name)
+    const { groups, ungrouped } = getSubProjectGroups(sub.requests)
+    for (const grp of groups) {
+      collapsedGroups.value.add(`${sub.dir_name}:${grp.name}`)
+    }
+    if (ungrouped.length > 0) {
+      collapsedGroups.value.add(`${sub.dir_name}:__other__`)
+    }
+  }
 }
 
 // 删除确认模态框状态 (彻底解决 WKWebView 原生 confirm 无弹窗问题)
