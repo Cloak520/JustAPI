@@ -20,8 +20,8 @@
         </button>
       </div>
 
-      <!-- 右侧辅助工具：Params & Headers 模式切换 (表格 vs 纯文本) -->
-      <div v-if="['params', 'headers'].includes(activeTab)" class="flex items-center space-x-1 text-[11px]">
+      <!-- 右侧辅助工具：Headers & Params 模式切换 (表格 vs 纯文本) -->
+      <div v-if="['headers', 'params'].includes(activeTab)" class="flex items-center space-x-1 text-[11px]">
         <button
           @click="toggleMode"
           class="flex items-center space-x-1 px-2 py-1 rounded border border-border bg-card/60 hover:bg-muted/50 text-muted-foreground hover:text-foreground transition"
@@ -36,7 +36,18 @@
 
     <!-- Tab 页面内容区 -->
     <div class="flex-1 overflow-y-auto">
-      <!-- 1. Params Tab (Path Variables + Query Params) -->
+      <!-- 1. Headers Tab -->
+      <div v-if="activeTab === 'headers'" class="space-y-2">
+        <BulkTextEditor
+          v-if="headersTextMode"
+          :items="store.headers"
+          format="colon"
+          @update:items="val => store.headers = val"
+        />
+        <KeyValueGrid v-else :items="store.headers" />
+      </div>
+
+      <!-- 2. Params Tab (Path Variables + Query Params) -->
       <div v-if="activeTab === 'params'" class="space-y-4">
         <!-- 路径参数 (Path Variables) -->
         <div v-if="store.pathParams.length > 0" class="space-y-2">
@@ -63,17 +74,6 @@
           />
           <KeyValueGrid v-else :items="store.queryParams" />
         </div>
-      </div>
-
-      <!-- 2. Headers Tab -->
-      <div v-if="activeTab === 'headers'" class="space-y-2">
-        <BulkTextEditor
-          v-if="headersTextMode"
-          :items="store.headers"
-          format="colon"
-          @update:items="val => store.headers = val"
-        />
-        <KeyValueGrid v-else :items="store.headers" />
       </div>
 
       <!-- 3. Body Tab -->
@@ -177,20 +177,20 @@ import BulkTextEditor from './BulkTextEditor.vue'
 import CodeEditor from '@/components/common/CodeEditor.vue'
 
 const store = useRequestStore()
-const activeTab = ref<'params' | 'headers' | 'body'>('params')
+const activeTab = ref<'headers' | 'params' | 'body'>('headers')
 
 const paramsTextMode = ref(false)
 const headersTextMode = ref(false)
 
 const isTextMode = computed(() => {
-  return activeTab.value === 'params' ? paramsTextMode.value : headersTextMode.value
+  return activeTab.value === 'headers' ? headersTextMode.value : paramsTextMode.value
 })
 
 function toggleMode() {
-  if (activeTab.value === 'params') {
-    paramsTextMode.value = !paramsTextMode.value
-  } else if (activeTab.value === 'headers') {
+  if (activeTab.value === 'headers') {
     headersTextMode.value = !headersTextMode.value
+  } else if (activeTab.value === 'params') {
+    paramsTextMode.value = !paramsTextMode.value
   }
 }
 
@@ -206,14 +206,14 @@ function addFormField() {
 
 const tabs = computed(() => [
   {
-    id: 'params' as const,
-    label: 'Params',
-    badgeCount: store.queryParams.filter(p => p.enabled && p.key.trim()).length + store.pathParams.length
-  },
-  {
     id: 'headers' as const,
     label: 'Headers',
     badgeCount: store.headers.filter(h => h.enabled && h.key.trim()).length
+  },
+  {
+    id: 'params' as const,
+    label: 'Params',
+    badgeCount: store.queryParams.filter(p => p.enabled && p.key.trim()).length + store.pathParams.length
   },
   {
     id: 'body' as const,
