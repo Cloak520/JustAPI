@@ -1,0 +1,23 @@
+[package]
+name = "justapi"
+version = "0.1.0"
+description = "A lightweight local-first RESTful API client"
+authors = ["cloak"]
+edition = "2024"
+rust-version = "1.90"
+
+[lib]
+name = "justapi_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.4" }
+
+[dependencies]
+tauri = { version = "2.12.5" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "gzip", "brotli", "cookies", "rustls-tls"] }
+tauri-plugin-log = "2"
+log = "0.4"
