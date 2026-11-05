@@ -50,10 +50,46 @@
       </button>
     </div>
 
-    <!-- 实时拼接完整 URL 预览 -->
-    <div class="flex items-center space-x-2 text-[11px] text-muted-foreground px-1 truncate">
-      <span class="text-muted-foreground/70 shrink-0">拼接预览:</span>
-      <span class="font-mono text-foreground/90 truncate">{{ store.resolvedUrl }}</span>
+    <!-- 实时拼接完整 URL 与插值预览 -->
+    <div class="flex flex-col space-y-1 px-1">
+      <div class="flex items-center space-x-2 text-[11px] text-muted-foreground truncate">
+        <span class="text-muted-foreground/70 shrink-0">拼接预览:</span>
+        <span class="font-mono text-foreground/90 truncate">{{ store.resolvedUrl }}</span>
+      </div>
+
+      <!-- 当存在环境变量插值时展示最终实际请求 URL 与变量来源徽章 -->
+      <div v-if="store.urlVariableTokens.length > 0" class="flex items-center space-x-2 text-[11px] flex-wrap gap-y-1">
+        <span class="text-emerald-400/90 font-medium shrink-0">实际发送:</span>
+        <span class="font-mono text-emerald-400 font-semibold truncate">{{ store.interpolatedUrl }}</span>
+
+        <!-- 变量来源徽章 -->
+        <div class="flex items-center space-x-1 pl-1">
+          <span
+            v-for="token in store.urlVariableTokens"
+            :key="token.key"
+            class="text-[10px] px-1.5 py-0.2 rounded font-mono border"
+            :class="{
+              'bg-purple-500/10 text-purple-400 border-purple-500/20': token.source === 'system',
+              'bg-blue-500/10 text-blue-400 border-blue-500/20': token.source === 'subproject',
+              'bg-emerald-500/10 text-emerald-400 border-emerald-500/20': token.source === 'project',
+              'bg-rose-500/10 text-rose-400 border-rose-500/20': token.source === 'unresolved'
+            }"
+            :title="token.source === 'system'
+              ? `${token.token}: 系统内置动态变量 (发送时实时生成)`
+              : token.source === 'subproject'
+              ? `${token.token} -> '${token.value}' (来自子项目覆盖)`
+              : token.source === 'project'
+              ? `${token.token} -> '${token.value}' (来自环境: ${token.environmentName || '当前环境'})`
+              : `${token.token}: 未定义变量，将保持原样`"
+          >
+            {{ token.token }}
+            <span v-if="token.source === 'system'">⚡</span>
+            <span v-else-if="token.source === 'subproject'">[子项目]</span>
+            <span v-else-if="token.source === 'project'">[{{ token.environmentName }}]</span>
+            <span v-else class="text-rose-400">[未定义]</span>
+          </span>
+        </div>
+      </div>
     </div>
   </div>
 </template>

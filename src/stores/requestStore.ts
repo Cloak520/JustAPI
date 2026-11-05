@@ -3,7 +3,9 @@ import { ref, computed, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import type { HttpMethod, BodyType, KeyValuePair, ApiResponse } from '@/types'
 import { extractPathVariables } from '@/utils/parser'
+import { interpolate, inspectInterpolationTokens } from '@/utils/interpolation'
 import { useProjectStore } from './projectStore'
+import { useTabStore } from './tabStore'
 
 export const useRequestStore = defineStore('request', () => {
   // 当前请求基础状态
@@ -80,6 +82,32 @@ export const useRequestStore = defineStore('request', () => {
     return fullUrl
   })
 
+  // 实时预览插值计算后的最终完整 URL
+  const interpolatedUrl = computed(() => {
+    try {
+      const projStore = useProjectStore()
+      const tabStore = useTabStore()
+      const activeTab = tabStore.tabs.find(t => t.id === tabStore.activeTabId)
+      const varMap = projStore.getEffectiveVariableMap(activeTab?.subProjectDir)
+      return interpolate(resolvedUrl.value, varMap)
+    } catch {
+      return resolvedUrl.value
+    }
+  })
+
+  // 提取当前 URL 中所包含的动态变量 Tokens 详情 (供 Tooltip / 标签状态使用)
+  const urlVariableTokens = computed(() => {
+    try {
+      const projStore = useProjectStore()
+      const tabStore = useTabStore()
+      const activeTab = tabStore.tabs.find(t => t.id === tabStore.activeTabId)
+      const varMap = projStore.getEffectiveVariableMap(activeTab?.subProjectDir)
+      return inspectInterpolationTokens(resolvedUrl.value, varMap)
+    } catch {
+      return []
+    }
+  })
+
   // 发送 RESTful 请求
   async function send() {
     if (!resolvedUrl.value) return
@@ -88,26 +116,40 @@ export const useRequestStore = defineStore('request', () => {
     response.value = null
 
     try {
-      // 组装 Header 数组
+      const projStore = useProjectStore()
+      const tabStore = useTabStore()
+      const activeTab = tabStore.tabs.find(t => t.id === tabStore.activeTabId)
+      const varMap = projStore.getEffectiveVariableMap(activeTab?.subProjectDir)
+
+      // 1. 动态插值解析请求最终 URL (含 BaseURL, 路径参数, Query 参数)
+      const finalUrl = interpolate(resolvedUrl.value, varMap)
+
+      // 2. 组装并插值 Header 数组
       const validHeaders: [string, string][] = headers.value
         .filter(h => h.enabled && h.key.trim())
-        .map(h => [h.key.trim(), h.value])
+        .map(h => [interpolate(h.key.trim(), varMap), interpolate(h.value, varMap)])
 
-      // 组装 Form 字段
+      // 3. 组装并插值 Form 字段
       const validFormFields = formFields.value
         .filter(f => f.enabled && f.key.trim())
         .map(f => ({
-          key: f.key.trim(),
-          value: f.value,
+          key: interpolate(f.key.trim(), varMap),
+          value: interpolate(f.value, varMap),
           is_file: f.is_file
         }))
 
+      // 4. 插值请求 Body 内容
+      let finalBody: string | null = null
+      if (['json', 'raw'].includes(bodyType.value) && bodyContent.value) {
+        finalBody = interpolate(bodyContent.value, varMap)
+      }
+
       const payload = {
-        url: resolvedUrl.value,
+        url: finalUrl,
         method: method.value,
         headers: validHeaders,
         body_type: bodyType.value,
-        body_content: ['json', 'raw'].includes(bodyType.value) ? bodyContent.value : null,
+        body_content: finalBody,
         form_fields: ['form-data', 'x-www-form-urlencoded'].includes(bodyType.value) ? validFormFields : null,
         timeout_ms: 30000
       }
@@ -126,12 +168,11 @@ export const useRequestStore = defineStore('request', () => {
 
       // 自动追加到历史记录
       try {
-        const projStore = useProjectStore()
         projStore.recordHistory({
           id: crypto.randomUUID(),
           name: path.value,
           method: method.value,
-          url: resolvedUrl.value,
+          url: finalUrl,
           status: res.status,
           durationMs: res.duration_ms,
           timestamp: Date.now()
@@ -182,6 +223,8 @@ export const useRequestStore = defineStore('request', () => {
     response,
     errorMessage,
     resolvedUrl,
+    interpolatedUrl,
+    urlVariableTokens,
     send,
     formatJson,
     minifyJson

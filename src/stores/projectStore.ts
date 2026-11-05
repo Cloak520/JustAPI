@@ -2,7 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useStorage } from '@vueuse/core'
-import type { FullProjectData, ProjectConfig, SubProjectData, SubProjectConfig, ApiRequest, HistoryItem, KeyValuePair } from '@/types'
+import type { FullProjectData, ProjectConfig, SubProjectData, SubProjectConfig, ApiRequest, HistoryItem, KeyValuePair, Environment } from '@/types'
+import { resolveEffectiveVariableMap, interpolate as interpolateText } from '@/utils/interpolation'
 
 export interface RecentProject {
   path: string
@@ -273,6 +274,83 @@ export const useProjectStore = defineStore('project', () => {
     return stats
   }
 
+  // 13. 环境变量管理
+  const activeEnvironment = computed<Environment | null>(() => {
+    if (!projectConfig.value?.environments || !projectConfig.value.activeEnvironmentId) {
+      return null
+    }
+    return projectConfig.value.environments.find(e => e.id === projectConfig.value?.activeEnvironmentId) || null
+  })
+
+  async function setActiveEnvironment(id: string | null) {
+    if (!projectConfig.value) return
+    projectConfig.value.activeEnvironmentId = id || undefined
+    await saveProjectConfig()
+  }
+
+  async function createEnvironment(name: string, variables: Record<string, string> = {}) {
+    if (!projectConfig.value) return null
+    if (!projectConfig.value.environments) {
+      projectConfig.value.environments = []
+    }
+    const newEnv: Environment = {
+      id: 'env_' + crypto.randomUUID().slice(0, 8),
+      name: name.trim() || '新环境',
+      variables
+    }
+    projectConfig.value.environments.push(newEnv)
+    if (!projectConfig.value.activeEnvironmentId) {
+      projectConfig.value.activeEnvironmentId = newEnv.id
+    }
+    await saveProjectConfig()
+    return newEnv
+  }
+
+  async function updateEnvironment(id: string, name: string, variables: Record<string, string>) {
+    if (!projectConfig.value?.environments) return
+    const env = projectConfig.value.environments.find(e => e.id === id)
+    if (env) {
+      env.name = name.trim()
+      env.variables = variables
+      await saveProjectConfig()
+    }
+  }
+
+  async function deleteEnvironment(id: string) {
+    if (!projectConfig.value?.environments) return
+    projectConfig.value.environments = projectConfig.value.environments.filter(e => e.id !== id)
+    if (projectConfig.value.activeEnvironmentId === id) {
+      projectConfig.value.activeEnvironmentId = projectConfig.value.environments[0]?.id || undefined
+    }
+    await saveProjectConfig()
+  }
+
+  // 14. 更新子项目配置 (包含环境变量与继承开关)
+  async function updateSubProjectConfig(dirName: string, config: SubProjectConfig) {
+    if (!projectPath.value) return
+    const sub = subProjects.value.find(s => s.dir_name === dirName)
+    if (sub) {
+      sub.config = config
+    }
+    await invoke('save_subproject_config', {
+      projectPath: projectPath.value,
+      dirName,
+      config
+    })
+  }
+
+  // 15. 获取针对指定子项目的多层级有效变量 Map (主项目环境 -> 子项目覆盖)
+  function getEffectiveVariableMap(subProjectDir?: string) {
+    const sub = subProjectDir ? subProjects.value.find(s => s.dir_name === subProjectDir) : null
+    return resolveEffectiveVariableMap(projectConfig.value, sub?.config)
+  }
+
+  // 16. 动态插值解析字符串
+  function interpolate(text: string, subProjectDir?: string) {
+    const map = getEffectiveVariableMap(subProjectDir)
+    return interpolateText(text, map)
+  }
+
   return {
     projectPath,
     projectConfig,
@@ -281,6 +359,7 @@ export const useProjectStore = defineStore('project', () => {
     currentSubProjectDir,
     recentProjects,
     hasProject,
+    activeEnvironment,
     pickAndOpenProject,
     loadProject,
     resolveEffectiveBaseUrl,
@@ -288,11 +367,18 @@ export const useProjectStore = defineStore('project', () => {
     saveProjectConfig,
     createSubProject,
     deleteSubProject,
+    updateSubProjectConfig,
     saveRequest,
     deleteRequest,
     recordHistory,
     clearHistory,
     importSwagger,
-    refreshSwagger
+    refreshSwagger,
+    setActiveEnvironment,
+    createEnvironment,
+    updateEnvironment,
+    deleteEnvironment,
+    getEffectiveVariableMap,
+    interpolate
   }
 })

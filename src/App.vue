@@ -33,8 +33,70 @@
         </div>
       </div>
 
-      <!-- 右侧：保存当前接口与快捷动作 -->
+      <!-- 右侧：环境变量快速切换 + 保存当前接口与快捷动作 -->
       <div class="flex items-center space-x-2 text-xs">
+        <!-- 环境变量下拉切换器 -->
+        <div class="relative">
+          <button
+            @click="showEnvDropdown = !showEnvDropdown"
+            class="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-muted/80 hover:bg-muted text-foreground text-[11px] font-medium transition border border-border/60"
+            title="切换当前全局环境变量"
+          >
+            <Globe class="w-3 h-3" :class="projectStore.activeEnvironment ? 'text-emerald-400' : 'text-muted-foreground'" />
+            <span class="max-w-[100px] truncate">{{ projectStore.activeEnvironment?.name || '无环境' }}</span>
+            <ChevronDown class="w-3 h-3 text-muted-foreground" />
+          </button>
+
+          <!-- 环境下拉面板 -->
+          <div
+            v-if="showEnvDropdown"
+            class="fixed inset-0 z-40"
+            @click="showEnvDropdown = false"
+          />
+          <div
+            v-if="showEnvDropdown"
+            class="absolute right-0 top-full mt-1.5 w-48 rounded-lg border border-border bg-popover p-1 shadow-lg z-50 text-xs animate-in fade-in zoom-in-95"
+            @click.stop
+          >
+            <div class="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              项目环境变量
+            </div>
+
+            <!-- 环境列表 -->
+            <div
+              v-for="env in projectStore.projectConfig?.environments || []"
+              :key="env.id"
+              @click="selectEnv(env.id)"
+              class="flex items-center justify-between px-2 py-1.5 rounded cursor-pointer hover:bg-muted transition text-xs"
+              :class="projectStore.activeEnvironment?.id === env.id ? 'bg-primary/10 text-primary font-medium' : 'text-foreground'"
+            >
+              <span class="truncate">{{ env.name }}</span>
+              <Check v-if="projectStore.activeEnvironment?.id === env.id" class="w-3 h-3 text-emerald-400 shrink-0" />
+            </div>
+
+            <!-- 无环境选项 -->
+            <div
+              @click="selectEnv(null)"
+              class="flex items-center justify-between px-2 py-1.5 rounded cursor-pointer hover:bg-muted transition text-xs"
+              :class="!projectStore.activeEnvironment ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground'"
+            >
+              <span>无环境 (No Env)</span>
+              <Check v-if="!projectStore.activeEnvironment" class="w-3 h-3 text-emerald-400 shrink-0" />
+            </div>
+
+            <div class="my-1 border-t border-border/60" />
+
+            <!-- 管理环境按钮 -->
+            <button
+              @click="openEnvModal"
+              class="w-full flex items-center space-x-1.5 px-2 py-1.5 rounded hover:bg-muted text-primary text-xs transition"
+            >
+              <Settings class="w-3 h-3" />
+              <span>管理环境变量...</span>
+            </button>
+          </div>
+        </div>
+
         <button
           @click="saveCurrentRequest"
           class="flex items-center space-x-1 px-2.5 py-1 rounded bg-muted hover:bg-muted/80 text-foreground text-[11px] font-medium transition"
@@ -45,6 +107,9 @@
         </button>
       </div>
     </header>
+
+    <!-- 环境变量管理模态框 -->
+    <EnvironmentModal v-model="showEnvModal" />
 
     <!-- 主工作区：左侧边栏 (项目与子项目树) + 右侧标签页与构建器 -->
     <div class="flex-1 flex overflow-hidden">
@@ -77,7 +142,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { PanelLeft, Save } from 'lucide-vue-next'
+import { PanelLeft, Save, Globe, ChevronDown, Check, Settings } from 'lucide-vue-next'
 import { onKeyStroke } from '@vueuse/core'
 import { useRequestStore } from '@/stores/requestStore'
 import { useProjectStore } from '@/stores/projectStore'
@@ -87,6 +152,7 @@ import TabBar from '@/components/tabs/TabBar.vue'
 import UrlBar from '@/components/request/UrlBar.vue'
 import RequestBuilder from '@/components/request/RequestBuilder.vue'
 import ResponseViewer from '@/components/response/ResponseViewer.vue'
+import EnvironmentModal from '@/components/modals/EnvironmentModal.vue'
 import type { ApiRequest } from '@/types'
 
 const store = useRequestStore()
@@ -94,6 +160,18 @@ const projectStore = useProjectStore()
 const tabStore = useTabStore()
 
 const sidebarVisible = ref(true)
+const showEnvDropdown = ref(false)
+const showEnvModal = ref(false)
+
+function selectEnv(id: string | null) {
+  projectStore.setActiveEnvironment(id)
+  showEnvDropdown.value = false
+}
+
+function openEnvModal() {
+  showEnvDropdown.value = false
+  showEnvModal.value = true
+}
 
 // 当激活的 Tab 变更时，如果该 Tab 关联子项目，自动计算级联继承的有效 BaseURL 和 Headers
 watch(() => tabStore.activeTabId, () => {

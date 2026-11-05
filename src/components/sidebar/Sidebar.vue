@@ -151,6 +151,13 @@
               </div>
 
               <button
+                @click="openSubProjectSettings(sub.dir_name)"
+                class="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition"
+                title="配置子项目 (BaseURL、环境变量覆盖、Headers)"
+              >
+                <Settings2 class="w-3.5 h-3.5" />
+              </button>
+              <button
                 @click="openNewRequestModal(sub.dir_name)"
                 class="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition"
                 title="在子项目下新建请求"
@@ -456,6 +463,12 @@
         </div>
       </div>
     </div>
+
+    <!-- 子项目配置模态框 (BaseURL、环境变量覆盖、Headers) -->
+    <SubProjectSettingsModal
+      v-model="showSubSettingsModal"
+      :dir-name="targetSubDirForSettings"
+    />
   </aside>
 </template>
 
@@ -463,12 +476,13 @@
 import { ref } from 'vue'
 import {
   FolderTree, History, FolderOpen, FolderPlus, Plus, Trash2, ChevronRight, FolderCode,
-  FileDown, RefreshCw, CheckCircle2, AlertCircle, Loader2
+  FileDown, RefreshCw, CheckCircle2, AlertCircle, Loader2, Settings2
 } from 'lucide-vue-next'
 import { onKeyStroke } from '@vueuse/core'
 import { useProjectStore } from '@/stores/projectStore'
 import { useTabStore } from '@/stores/tabStore'
 import { useRequestStore } from '@/stores/requestStore'
+import SubProjectSettingsModal from '@/components/modals/SubProjectSettingsModal.vue'
 import type { HttpMethod, HistoryItem, ApiRequest } from '@/types'
 
 const projectStore = useProjectStore()
@@ -503,6 +517,15 @@ const refreshingDir = ref<string | null>(null)
 // Toast 状态
 const toastMessage = ref('')
 const toastIsError = ref(false)
+
+// 子项目配置模态框状态
+const showSubSettingsModal = ref(false)
+const targetSubDirForSettings = ref('')
+
+function openSubProjectSettings(dirName: string) {
+  targetSubDirForSettings.value = dirName
+  showSubSettingsModal.value = true
+}
 
 function showToast(msg: string, isError = false) {
   toastMessage.value = msg
