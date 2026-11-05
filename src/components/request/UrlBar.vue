@@ -17,7 +17,7 @@
       </div>
 
       <!-- 右侧：所属子项目与分组选择器 (点击可切换子项目或分组) -->
-      <div class="flex items-center space-x-1 text-xs shrink-0">
+      <div class="flex items-center space-x-1.5 text-xs shrink-0">
         <button
           @click="tabStore.showSaveModal = true"
           class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono transition border"
@@ -31,6 +31,16 @@
             {{ activeTab?.subProjectDir ? `${subProjectDisplayName}${activeTab.group ? ` / ${activeTab.group}` : ''}` : '未关联子项目 (点击指定)' }}
           </span>
           <ChevronDown class="w-3 h-3 opacity-60 shrink-0" />
+        </button>
+
+        <!-- 复制当前接口按钮 -->
+        <button
+          @click="handleDuplicateCurrent"
+          class="flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[11px] font-sans font-medium transition border bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground border-border hover:border-primary/50"
+          title="复制当前接口为新副本 (Duplicate)"
+        >
+          <Copy class="w-3.5 h-3.5 text-muted-foreground" />
+          <span>复制接口</span>
         </button>
       </div>
     </div>
@@ -93,55 +103,79 @@
 
     <!-- 实时拼接完整 URL 与插值预览 -->
     <div class="flex flex-col space-y-1 px-1">
-      <div class="flex items-center space-x-2 text-[11px] text-muted-foreground truncate">
-        <span class="text-muted-foreground/70 shrink-0">拼接预览:</span>
-        <span class="font-mono text-foreground/90 truncate">{{ store.resolvedUrl }}</span>
+      <div class="flex items-center justify-between text-[11px] text-muted-foreground">
+        <div class="flex items-center space-x-2 truncate flex-1 min-w-0">
+          <span class="text-muted-foreground/70 shrink-0">拼接预览:</span>
+          <span class="font-mono text-foreground/90 truncate select-all">{{ store.resolvedUrl }}</span>
+        </div>
+        <button
+          v-if="store.resolvedUrl"
+          @click="copyUrlToClipboard(store.resolvedUrl, 'resolved')"
+          class="flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/80 transition shrink-0 ml-2 border border-transparent hover:border-border"
+          title="复制拼接 URL 到剪贴板"
+        >
+          <Check v-if="copiedType === 'resolved'" class="w-3 h-3 text-emerald-400" />
+          <Copy v-else class="w-3 h-3" />
+          <span>{{ copiedType === 'resolved' ? '已复制' : '复制 URL' }}</span>
+        </button>
       </div>
 
       <!-- 当存在环境变量插值时展示最终实际请求 URL 与变量来源徽章 -->
-      <div v-if="store.urlVariableTokens.length > 0" class="flex items-center space-x-2 text-[11px] flex-wrap gap-y-1">
-        <span class="text-emerald-400/90 font-medium shrink-0">实际发送:</span>
-        <span class="font-mono text-emerald-400 font-semibold truncate">{{ store.interpolatedUrl }}</span>
+      <div v-if="store.urlVariableTokens.length > 0" class="flex items-center justify-between text-[11px]">
+        <div class="flex items-center space-x-2 flex-wrap gap-y-1 flex-1 min-w-0">
+          <span class="text-emerald-400/90 font-medium shrink-0">实际发送:</span>
+          <span class="font-mono text-emerald-400 font-semibold truncate">{{ store.interpolatedUrl }}</span>
 
-        <!-- 变量来源徽章 -->
-        <div class="flex items-center space-x-1 pl-1">
-          <span
-            v-for="token in store.urlVariableTokens"
-            :key="token.key"
-            class="text-[10px] px-1.5 py-0.2 rounded font-mono border"
-            :class="{
-              'bg-purple-500/10 text-purple-400 border-purple-500/20': token.source === 'system',
-              'bg-blue-500/10 text-blue-400 border-blue-500/20': token.source === 'subproject',
-              'bg-emerald-500/10 text-emerald-400 border-emerald-500/20': token.source === 'project',
-              'bg-rose-500/10 text-rose-400 border-rose-500/20': token.source === 'unresolved'
-            }"
-            :title="token.source === 'system'
-              ? `${token.token}: 系统内置动态变量 (发送时实时生成)`
-              : token.source === 'subproject'
-              ? `${token.token} -> '${token.value}' (来自子项目覆盖)`
-              : token.source === 'project'
-              ? `${token.token} -> '${token.value}' (来自环境: ${token.environmentName || '当前环境'})`
-              : `${token.token}: 未定义变量，将保持原样`"
-          >
-            {{ token.token }}
-            <span v-if="token.source === 'system'">⚡</span>
-            <span v-else-if="token.source === 'subproject'">[子项目]</span>
-            <span v-else-if="token.source === 'project'">[{{ token.environmentName }}]</span>
-            <span v-else class="text-rose-400">[未定义]</span>
-          </span>
+          <!-- 变量来源徽章 -->
+          <div class="flex items-center space-x-1 pl-1">
+            <span
+              v-for="token in store.urlVariableTokens"
+              :key="token.key"
+              class="text-[10px] px-1.5 py-0.2 rounded font-mono border"
+              :class="{
+                'bg-purple-500/10 text-purple-400 border-purple-500/20': token.source === 'system',
+                'bg-blue-500/10 text-blue-400 border-blue-500/20': token.source === 'subproject',
+                'bg-emerald-500/10 text-emerald-400 border-emerald-500/20': token.source === 'project',
+                'bg-rose-500/10 text-rose-400 border-rose-500/20': token.source === 'unresolved'
+              }"
+              :title="token.source === 'system'
+                ? `${token.token}: 系统内置动态变量 (发送时实时生成)`
+                : token.source === 'subproject'
+                ? `${token.token} -> '${token.value}' (来自子项目覆盖)`
+                : token.source === 'project'
+                ? `${token.token} -> '${token.value}' (来自环境: ${token.environmentName || '当前环境'})`
+                : `${token.token}: 未定义变量，将保持原样`"
+            >
+              {{ token.token }}
+              <span v-if="token.source === 'system'">⚡</span>
+              <span v-else-if="token.source === 'subproject'">[子项目]</span>
+              <span v-else-if="token.source === 'project'">[{{ token.environmentName }}]</span>
+              <span v-else class="text-rose-400">[未定义]</span>
+            </span>
+          </div>
         </div>
+        <button
+          @click="copyUrlToClipboard(store.interpolatedUrl, 'interpolated')"
+          class="flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition shrink-0 ml-2 border border-emerald-500/20"
+          title="复制实际发送 URL 到剪贴板"
+        >
+          <Check v-if="copiedType === 'interpolated'" class="w-3 h-3 text-emerald-400" />
+          <Copy v-else class="w-3 h-3" />
+          <span>{{ copiedType === 'interpolated' ? '已复制' : '复制' }}</span>
+        </button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { ChevronDown, Send, Loader2, Globe, Folder, Edit3 } from 'lucide-vue-next'
+import { ref, computed } from 'vue'
+import { ChevronDown, Send, Loader2, Globe, Folder, Edit3, Copy, Check } from 'lucide-vue-next'
 import { useRequestStore } from '@/stores/requestStore'
 import { useTabStore } from '@/stores/tabStore'
 import { useProjectStore } from '@/stores/projectStore'
 import { onKeyStroke } from '@vueuse/core'
+import type { ApiRequest } from '@/types'
 
 const store = useRequestStore()
 const tabStore = useTabStore()
@@ -191,6 +225,54 @@ const methodColorClass = computed(() => {
     default: return 'bg-muted text-muted-foreground'
   }
 })
+
+const copiedType = ref<string | null>(null)
+
+async function copyUrlToClipboard(text: string, type: string) {
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+    copiedType.value = type
+    setTimeout(() => {
+      if (copiedType.value === type) {
+        copiedType.value = null
+      }
+    }, 2000)
+  } catch (err) {
+    console.error('Failed to copy URL to clipboard', err)
+  }
+}
+
+// 复制当前接口为新副本
+async function handleDuplicateCurrent() {
+  if (!activeTab.value) return
+
+  // 1. 若当前 Tab 已归属子项目，基于最新状态创建新副本并保存
+  if (activeTab.value.subProjectDir && projectStore.projectPath) {
+    const rawReq: ApiRequest = {
+      id: activeTab.value.requestId || crypto.randomUUID(),
+      name: tabTitle.value || activeTab.value.title || store.path || '未命名请求',
+      method: store.method,
+      path: store.path,
+      pathParams: JSON.parse(JSON.stringify(store.pathParams)),
+      queryParams: JSON.parse(JSON.stringify(store.queryParams)),
+      headers: JSON.parse(JSON.stringify(store.headers)),
+      bodyType: store.bodyType,
+      bodyContent: store.bodyContent,
+      subProjectId: activeTab.value.subProjectDir,
+      fileName: activeTab.value.fileName,
+      group: activeTab.value.group || store.group || undefined
+    }
+
+    const cloned = await projectStore.duplicateRequest(activeTab.value.subProjectDir, rawReq)
+    if (cloned) {
+      tabStore.openTab(cloned, activeTab.value.subProjectDir)
+    }
+  } else {
+    // 2. 若尚未保存到子项目，直接在 Tab 栏克隆内存副本
+    tabStore.duplicateMemoryTab(activeTab.value.id)
+  }
+}
 
 // 快捷键 Cmd/Ctrl + Enter 发送请求
 onKeyStroke('Enter', (e) => {

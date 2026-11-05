@@ -304,6 +304,13 @@
 
                     <div class="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition shrink-0" @click.stop>
                       <button
+                        @click.stop="duplicateRequest(sub.dir_name, req)"
+                        class="p-0.5 rounded text-muted-foreground/60 hover:text-foreground transition"
+                        title="复制接口 (生成副本)"
+                      >
+                        <Copy class="w-3 h-3" />
+                      </button>
+                      <button
                         @click.stop="promptRenameRequest(sub.dir_name, req)"
                         class="p-0.5 rounded text-muted-foreground/60 hover:text-primary transition"
                         title="重命名接口"
@@ -366,6 +373,13 @@
 
                     <div class="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition shrink-0" @click.stop>
                       <button
+                        @click.stop="duplicateRequest(sub.dir_name, req)"
+                        class="p-0.5 rounded text-muted-foreground/60 hover:text-foreground transition"
+                        title="复制接口 (生成副本)"
+                      >
+                        <Copy class="w-3 h-3" />
+                      </button>
+                      <button
                         @click.stop="promptRenameRequest(sub.dir_name, req)"
                         class="p-0.5 rounded text-muted-foreground/60 hover:text-primary transition"
                         title="重命名接口"
@@ -408,6 +422,13 @@
                   </div>
 
                   <div class="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition shrink-0" @click.stop>
+                    <button
+                      @click.stop="duplicateRequest(sub.dir_name, req)"
+                      class="p-0.5 rounded text-muted-foreground/60 hover:text-foreground transition"
+                      title="复制接口 (生成副本)"
+                    >
+                      <Copy class="w-3 h-3" />
+                    </button>
                     <button
                       @click.stop="promptRenameRequest(sub.dir_name, req)"
                       class="p-0.5 rounded text-muted-foreground/60 hover:text-primary transition"
@@ -833,7 +854,7 @@ import { ref, computed, nextTick, watch } from 'vue'
 import {
   FolderTree, History, FolderOpen, FolderPlus, Plus, Trash2, ChevronRight, FolderCode,
   FileDown, RefreshCw, CheckCircle2, AlertCircle, Loader2, Settings2, Folder, FolderCog,
-  UnfoldVertical, FoldVertical, Edit3, AlertTriangle, Search, SearchX, X
+  UnfoldVertical, FoldVertical, Edit3, AlertTriangle, Search, SearchX, X, Copy
 } from 'lucide-vue-next'
 import { onKeyStroke } from '@vueuse/core'
 import { useProjectStore } from '@/stores/projectStore'
@@ -1227,6 +1248,19 @@ async function confirmDeleteItem() {
     }
   } catch (err: any) {
     showToast(`删除失败: ${err?.message || err}`, true)
+  }
+}
+
+// 复制接口功能 (生成副本并持久化且直接打开新 Tab)
+async function duplicateRequest(subDir: string, req: ApiRequest) {
+  try {
+    const cloned = await projectStore.duplicateRequest(subDir, req)
+    if (cloned) {
+      tabStore.openTab(cloned, subDir)
+      showToast(`接口已成功复制为: [${cloned.name}]`)
+    }
+  } catch (err: any) {
+    showToast(`复制接口失败: ${err?.message || err}`, true)
   }
 }
 

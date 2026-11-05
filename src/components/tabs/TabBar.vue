@@ -32,12 +32,20 @@
         {{ tab.title }}
       </span>
 
-      <!-- 未保存小圆点 / 关闭按钮 -->
-      <div class="flex items-center shrink-0 w-3.5 h-3.5 justify-center">
+      <!-- 未保存小圆点 / 关闭与复制按钮 -->
+      <div class="flex items-center shrink-0 space-x-0.5 justify-end">
         <span v-if="tab.isDirty" class="w-1.5 h-1.5 rounded-full bg-primary group-hover:hidden"></span>
         <button
+          @click.stop="duplicateTab(tab)"
+          class="rounded hover:bg-muted/80 p-0.5 text-muted-foreground/60 hover:text-foreground hidden group-hover:flex transition"
+          title="复制此接口 (Duplicate)"
+        >
+          <Copy class="w-3 h-3" />
+        </button>
+        <button
           @click.stop="tabStore.closeTab(tab.id)"
-          class="rounded hover:bg-muted/80 p-0.5 text-muted-foreground/60 hover:text-foreground hidden group-hover:flex"
+          class="rounded hover:bg-muted/80 p-0.5 text-muted-foreground/60 hover:text-foreground hidden group-hover:flex transition"
+          title="关闭标签页"
         >
           <X class="w-3 h-3" />
         </button>
@@ -57,13 +65,15 @@
 
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
-import { Plus, X } from 'lucide-vue-next'
+import { Plus, X, Copy } from 'lucide-vue-next'
 import { useTabStore } from '@/stores/tabStore'
 import { useProjectStore } from '@/stores/projectStore'
-import type { HttpMethod, TabItem } from '@/types'
+import { useRequestStore } from '@/stores/requestStore'
+import type { HttpMethod, TabItem, ApiRequest } from '@/types'
 
 const tabStore = useTabStore()
 const projectStore = useProjectStore()
+const requestStore = useRequestStore()
 
 const editingTabId = ref<string | null>(null)
 const editingTitle = ref('')
@@ -95,6 +105,37 @@ async function finishEditing(tab: TabItem) {
       await projectStore.saveRequest(tab.subProjectDir, tab.fileName, existingReq)
     }
   }
+}
+
+async function duplicateTab(tab: TabItem) {
+  if (tab.subProjectDir && tab.fileName && projectStore.projectPath) {
+    const sub = projectStore.subProjects.find(s => s.dir_name === tab.subProjectDir)
+    const existingReq = sub?.requests.find(r => r.fileName === tab.fileName || r.id === tab.requestId)
+    if (existingReq) {
+      let reqToClone: ApiRequest = existingReq
+      if (tab.id === tabStore.activeTabId) {
+        reqToClone = {
+          ...existingReq,
+          name: tab.title,
+          method: requestStore.method,
+          path: requestStore.path,
+          pathParams: JSON.parse(JSON.stringify(requestStore.pathParams)),
+          queryParams: JSON.parse(JSON.stringify(requestStore.queryParams)),
+          headers: JSON.parse(JSON.stringify(requestStore.headers)),
+          bodyType: requestStore.bodyType,
+          bodyContent: requestStore.bodyContent,
+          group: tab.group || requestStore.group || undefined
+        }
+      }
+      const cloned = await projectStore.duplicateRequest(tab.subProjectDir, reqToClone)
+      if (cloned) {
+        tabStore.openTab(cloned, tab.subProjectDir)
+      }
+      return
+    }
+  }
+
+  tabStore.duplicateMemoryTab(tab.id)
 }
 
 function cancelEditing() {

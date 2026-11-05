@@ -240,6 +240,42 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
+  // 7.6 复制/克隆接口 (生成副本并持久化)
+  async function duplicateRequest(subProjectDir: string, req: ApiRequest): Promise<ApiRequest | null> {
+    if (!projectPath.value) return null
+    const sub = subProjects.value.find(s => s.dir_name === subProjectDir)
+    if (!sub) return null
+
+    const rawName = req.name || req.path || '未命名请求'
+    let newName = ''
+    const copyMatch = rawName.match(/^(.*?)(?:\s*\(副本(?:\s*(\d+))?\))?$/)
+    if (copyMatch) {
+      const baseTitle = copyMatch[1]
+      const count = copyMatch[2] ? parseInt(copyMatch[2], 10) + 1 : (rawName.includes('(副本)') ? 2 : 1)
+      newName = count === 1 ? `${baseTitle} (副本)` : `${baseTitle} (副本 ${count})`
+    } else {
+      newName = `${rawName} (副本)`
+    }
+
+    const newId = crypto.randomUUID()
+    const groupName = req.group || undefined
+    const cleanBaseName = newName.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5-]/g, '_') || 'req'
+    const baseFname = `${cleanBaseName}_${Date.now().toString().slice(-4)}.json`
+    const newFileName = groupName ? `${groupName}/${baseFname}` : baseFname
+
+    const clonedReq: ApiRequest = {
+      ...JSON.parse(JSON.stringify(req)),
+      id: newId,
+      name: newName,
+      subProjectId: subProjectDir,
+      fileName: newFileName,
+      group: groupName
+    }
+
+    await saveRequest(subProjectDir, newFileName, clonedReq)
+    return clonedReq
+  }
+
   // 7.5 删除子项目
   async function deleteSubProject(dirName: string) {
     if (!projectPath.value) return
@@ -482,6 +518,7 @@ export const useProjectStore = defineStore('project', () => {
     deleteSubProject,
     updateSubProjectConfig,
     saveRequest,
+    duplicateRequest,
     deleteRequest,
     recordHistory,
     clearHistory,

@@ -93,6 +93,32 @@ export const useTabStore = defineStore('tab', () => {
     }
   }
 
+  function duplicateMemoryTab(sourceTabId: string) {
+    const sourceTab = tabs.value.find(t => t.id === sourceTabId)
+    if (!sourceTab) return
+    const id = crypto.randomUUID()
+    const rawTitle = sourceTab.title || '未命名请求'
+    const copyMatch = rawTitle.match(/^(.*?)(?:\s*\(副本(?:\s*(\d+))?\))?$/)
+    let newTitle = ''
+    if (copyMatch) {
+      const baseTitle = copyMatch[1]
+      const count = copyMatch[2] ? parseInt(copyMatch[2], 10) + 1 : (rawTitle.includes('(副本)') ? 2 : 1)
+      newTitle = count === 1 ? `${baseTitle} (副本)` : `${baseTitle} (副本 ${count})`
+    } else {
+      newTitle = `${rawTitle} (副本)`
+    }
+
+    tabs.value.push({
+      ...JSON.parse(JSON.stringify(sourceTab)),
+      id,
+      title: newTitle,
+      isDirty: true,
+      requestId: undefined,
+      fileName: undefined
+    })
+    activeTabId.value = id
+  }
+
   return {
     tabs,
     activeTabId,
@@ -100,6 +126,7 @@ export const useTabStore = defineStore('tab', () => {
     newTab,
     openTab,
     closeTab,
+    duplicateMemoryTab,
     markCurrentDirty
   }
 })
