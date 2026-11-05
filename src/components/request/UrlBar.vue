@@ -1,5 +1,28 @@
 <template>
   <div class="flex flex-col space-y-1.5">
+    <!-- 接口名称 (直接重命名当前接口) 与 所属子项目/分组 -->
+    <div class="flex items-center justify-between pb-0.5 px-0.5">
+      <div class="group/title flex items-center space-x-1.5 flex-1 max-w-md">
+        <input
+          v-model="tabTitle"
+          type="text"
+          placeholder="未命名请求 (点击输入接口名称)"
+          class="text-xs font-semibold bg-transparent hover:bg-muted/40 focus:bg-background px-2 py-0.5 rounded border border-transparent hover:border-border/60 focus:border-primary focus:outline-none transition w-full text-foreground truncate"
+          @change="handleTabTitleChange"
+          @blur="handleTabTitleChange"
+          @keydown.enter="($event.target as HTMLElement).blur()"
+          title="点击直接重命名当前接口"
+        />
+        <Edit3 class="w-3 h-3 text-muted-foreground/40 group-hover/title:text-primary transition shrink-0 pointer-events-none" />
+      </div>
+
+      <!-- 右侧：所属子项目与分组提示 -->
+      <div v-if="activeTab?.subProjectDir" class="flex items-center space-x-1.5 text-[11px] text-muted-foreground font-mono">
+        <Folder class="w-3 h-3 text-muted-foreground/60" />
+        <span>{{ activeTab.subProjectDir }}{{ activeTab.group ? ` / ${activeTab.group}` : '' }}</span>
+      </div>
+    </div>
+
     <div class="flex items-center space-x-2">
       <!-- Method 选择框 -->
       <div class="relative shrink-0">
@@ -102,11 +125,43 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ChevronDown, Send, Loader2, Globe, Folder } from 'lucide-vue-next'
+import { ChevronDown, Send, Loader2, Globe, Folder, Edit3 } from 'lucide-vue-next'
 import { useRequestStore } from '@/stores/requestStore'
+import { useTabStore } from '@/stores/tabStore'
+import { useProjectStore } from '@/stores/projectStore'
 import { onKeyStroke } from '@vueuse/core'
 
 const store = useRequestStore()
+const tabStore = useTabStore()
+const projectStore = useProjectStore()
+
+const activeTab = computed(() => tabStore.tabs.find(t => t.id === tabStore.activeTabId))
+
+const tabTitle = computed({
+  get: () => activeTab.value?.title || '',
+  set: (val: string) => {
+    if (activeTab.value) {
+      activeTab.value.title = val
+      tabStore.markCurrentDirty(true)
+    }
+  }
+})
+
+async function handleTabTitleChange() {
+  if (!activeTab.value) return
+  const newName = activeTab.value.title.trim() || '未命名请求'
+  activeTab.value.title = newName
+
+  // 若当前请求已在子项目中保存过文件，自动同步更新到文件和内存列表中
+  if (activeTab.value.subProjectDir && activeTab.value.fileName && projectStore.projectPath) {
+    const sub = projectStore.subProjects.find(s => s.dir_name === activeTab.value?.subProjectDir)
+    const existingReq = sub?.requests.find(r => r.fileName === activeTab.value?.fileName || r.id === activeTab.value?.requestId)
+    if (existingReq) {
+      existingReq.name = newName
+      await projectStore.saveRequest(activeTab.value.subProjectDir, activeTab.value.fileName, existingReq)
+    }
+  }
+}
 
 const methodColorClass = computed(() => {
   switch (store.method) {

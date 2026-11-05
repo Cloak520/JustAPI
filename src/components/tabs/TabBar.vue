@@ -12,8 +12,23 @@
         {{ tab.method }}
       </span>
 
-      <!-- 标题 -->
-      <span class="truncate text-[11px] font-medium" :title="tab.title">
+      <!-- 标题 (双击可直接重命名) -->
+      <input
+        v-if="editingTabId === tab.id"
+        ref="editInputRef"
+        v-model="editingTitle"
+        @blur="finishEditing(tab)"
+        @keydown.enter="finishEditing(tab)"
+        @keydown.esc="cancelEditing"
+        @click.stop
+        class="text-[11px] font-medium bg-background px-1 py-0.2 rounded border border-primary focus:outline-none w-28 text-foreground"
+      />
+      <span
+        v-else
+        @dblclick.stop="startEditing(tab)"
+        class="truncate text-[11px] font-medium"
+        :title="`${tab.title} (双击重命名)`"
+      >
         {{ tab.title }}
       </span>
 
@@ -41,11 +56,50 @@
 </template>
 
 <script setup lang="ts">
+import { ref, nextTick } from 'vue'
 import { Plus, X } from 'lucide-vue-next'
 import { useTabStore } from '@/stores/tabStore'
-import type { HttpMethod } from '@/types'
+import { useProjectStore } from '@/stores/projectStore'
+import type { HttpMethod, TabItem } from '@/types'
 
 const tabStore = useTabStore()
+const projectStore = useProjectStore()
+
+const editingTabId = ref<string | null>(null)
+const editingTitle = ref('')
+const editInputRef = ref<HTMLInputElement[] | null>(null)
+
+function startEditing(tab: TabItem) {
+  editingTabId.value = tab.id
+  editingTitle.value = tab.title
+  nextTick(() => {
+    if (editInputRef.value && editInputRef.value[0]) {
+      editInputRef.value[0].focus()
+      editInputRef.value[0].select()
+    }
+  })
+}
+
+async function finishEditing(tab: TabItem) {
+  if (editingTabId.value !== tab.id) return
+  const newTitle = editingTitle.value.trim() || '未命名请求'
+  tab.title = newTitle
+  editingTabId.value = null
+  tabStore.markCurrentDirty(true)
+
+  if (tab.subProjectDir && tab.fileName && projectStore.projectPath) {
+    const sub = projectStore.subProjects.find(s => s.dir_name === tab.subProjectDir)
+    const existingReq = sub?.requests.find(r => r.fileName === tab.fileName || r.id === tab.requestId)
+    if (existingReq) {
+      existingReq.name = newTitle
+      await projectStore.saveRequest(tab.subProjectDir, tab.fileName, existingReq)
+    }
+  }
+}
+
+function cancelEditing() {
+  editingTabId.value = null
+}
 
 function getMethodColor(method: HttpMethod) {
   switch (method) {

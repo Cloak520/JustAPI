@@ -107,8 +107,38 @@
         </div>
       </div>
 
-      <!-- 已打开项目：子项目与请求树 -->
-      <div v-else class="flex-1 overflow-y-auto p-2 space-y-2">
+      <!-- 已打开项目：子项目与请求树 (支持全部展开/折叠与接口管理) -->
+      <div v-else class="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <!-- 树形结构快捷操作栏 (展开全部 / 折叠全部 / 接口总数) -->
+        <div v-if="projectStore.subProjects.length > 0" class="px-3 py-1.5 bg-muted/20 border-b border-border/50 flex items-center justify-between text-[11px] text-muted-foreground shrink-0 select-none">
+          <div class="flex items-center space-x-1.5">
+            <span class="font-medium text-foreground/80">接口模块</span>
+            <span class="px-1.5 py-0.2 rounded-full bg-primary/10 text-primary text-[10px] font-mono font-medium">
+              {{ totalRequestsCount }} 个
+            </span>
+          </div>
+
+          <div class="flex items-center space-x-1">
+            <button
+              @click="expandAllTree"
+              class="flex items-center space-x-1 px-1.5 py-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition text-[10px]"
+              title="全部展开所有模块与接口分组"
+            >
+              <UnfoldVertical class="w-3 h-3 text-primary/80" />
+              <span>展开全部</span>
+            </button>
+            <button
+              @click="collapseAllTree"
+              class="flex items-center space-x-1 px-1.5 py-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition text-[10px]"
+              title="全部折叠所有模块"
+            >
+              <FoldVertical class="w-3 h-3 text-muted-foreground" />
+              <span>折叠全部</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-2 space-y-2">
         <div v-if="projectStore.subProjects.length === 0" class="p-4 text-center text-muted-foreground text-xs space-y-2">
           <div>暂无子项目模块</div>
           <button
@@ -173,7 +203,7 @@
                 <Plus class="w-3.5 h-3.5" />
               </button>
               <button
-                @click="deleteSubProject(sub.dir_name)"
+                @click="promptDeleteSubProject(sub.dir_name, sub.config.name)"
                 class="p-1 rounded hover:bg-muted text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition"
                 title="删除子项目"
               >
@@ -233,13 +263,22 @@
                       </span>
                     </div>
 
-                    <button
-                      @click.stop="deleteRequest(sub.dir_name, req.fileName!)"
-                      class="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground/50 hover:text-destructive transition"
-                      title="删除请求"
-                    >
-                      <Trash2 class="w-3 h-3" />
-                    </button>
+                    <div class="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition shrink-0" @click.stop>
+                      <button
+                        @click.stop="promptRenameRequest(sub.dir_name, req)"
+                        class="p-0.5 rounded text-muted-foreground/60 hover:text-primary transition"
+                        title="重命名接口"
+                      >
+                        <Edit3 class="w-3 h-3" />
+                      </button>
+                      <button
+                        @click.stop="promptDeleteRequest(sub.dir_name, req)"
+                        class="p-0.5 rounded text-muted-foreground/60 hover:text-destructive transition"
+                        title="删除接口"
+                      >
+                        <Trash2 class="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -268,13 +307,22 @@
                     </span>
                   </div>
 
-                  <button
-                    @click.stop="deleteRequest(sub.dir_name, req.fileName!)"
-                    class="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground/50 hover:text-destructive transition"
-                    title="删除请求"
-                  >
-                    <Trash2 class="w-3 h-3" />
-                  </button>
+                  <div class="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition shrink-0" @click.stop>
+                    <button
+                      @click.stop="promptRenameRequest(sub.dir_name, req)"
+                      class="p-0.5 rounded text-muted-foreground/60 hover:text-primary transition"
+                      title="重命名接口"
+                    >
+                      <Edit3 class="w-3 h-3" />
+                    </button>
+                    <button
+                      @click.stop="promptDeleteRequest(sub.dir_name, req)"
+                      class="p-0.5 rounded text-muted-foreground/60 hover:text-destructive transition"
+                      title="删除接口"
+                    >
+                      <Trash2 class="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </template>
@@ -301,13 +349,22 @@
                     </span>
                   </div>
 
-                  <button
-                    @click.stop="deleteRequest(sub.dir_name, req.fileName!)"
-                    class="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground/50 hover:text-destructive transition"
-                    title="删除请求"
-                  >
-                    <Trash2 class="w-3 h-3" />
-                  </button>
+                  <div class="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition shrink-0" @click.stop>
+                    <button
+                      @click.stop="promptRenameRequest(sub.dir_name, req)"
+                      class="p-0.5 rounded text-muted-foreground/60 hover:text-primary transition"
+                      title="重命名接口"
+                    >
+                      <Edit3 class="w-3 h-3" />
+                    </button>
+                    <button
+                      @click.stop="promptDeleteRequest(sub.dir_name, req)"
+                      class="p-0.5 rounded text-muted-foreground/60 hover:text-destructive transition"
+                      title="删除接口"
+                    >
+                      <Trash2 class="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </template>
@@ -316,6 +373,7 @@
               空模块，点击上方 + 添加请求
             </div>
           </div>
+        </div>
         </div>
       </div>
     </div>
@@ -585,14 +643,100 @@
       v-model="showProjectSettingsModal"
       @saved="showToast('主项目配置已保存至 project.json')"
     />
+
+    <!-- 模态框：重命名接口 -->
+    <div
+      v-if="reqToRename"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+    >
+      <div class="bg-card border border-border rounded-xl p-5 w-full max-w-sm space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <Edit3 class="w-4 h-4 text-primary" />
+            <h3 class="font-semibold text-sm">重命名接口</h3>
+          </div>
+          <span class="text-[10px] text-muted-foreground font-mono truncate max-w-[150px]">{{ reqToRename.fileName }}</span>
+        </div>
+
+        <div class="space-y-1.5 text-xs">
+          <label class="text-muted-foreground font-medium">接口新名称</label>
+          <input
+            v-model="renameNewTitle"
+            type="text"
+            ref="renameInputRef"
+            @keydown.enter="confirmRenameRequest"
+            placeholder="输入接口名称"
+            class="w-full text-xs px-3 py-2 rounded-lg bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
+          />
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-1 text-xs">
+          <button
+            @click="reqToRename = null"
+            class="px-3 py-1.5 rounded hover:bg-muted text-muted-foreground transition"
+          >
+            取消
+          </button>
+          <button
+            @click="confirmRenameRequest"
+            :disabled="!renameNewTitle.trim()"
+            class="px-4 py-1.5 rounded bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition shadow-sm disabled:opacity-50"
+          >
+            确定
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 模态框：删除确认 (替代受 WKWebView 限制的原生 confirm) -->
+    <div
+      v-if="itemToDelete"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+    >
+      <div class="bg-card border border-border rounded-xl p-5 w-full max-w-sm space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
+        <div class="flex items-center space-x-3">
+          <div class="w-8 h-8 rounded-full bg-destructive/10 text-destructive flex items-center justify-center shrink-0">
+            <AlertTriangle class="w-4 h-4" />
+          </div>
+          <div>
+            <h3 class="font-semibold text-sm text-foreground">
+              {{ itemToDelete.type === 'subproject' ? '删除子项目模块' : '删除接口文件' }}
+            </h3>
+            <p class="text-[11px] text-muted-foreground mt-0.5">
+              此操作不可撤销，将从本地磁盘永久删除对应文件
+            </p>
+          </div>
+        </div>
+
+        <div class="p-2.5 rounded-lg bg-muted/40 border border-border/60 text-xs font-mono break-all text-muted-foreground">
+          {{ itemToDelete.name }}
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-1 text-xs">
+          <button
+            @click="itemToDelete = null"
+            class="px-3 py-1.5 rounded hover:bg-muted text-muted-foreground transition"
+          >
+            取消
+          </button>
+          <button
+            @click="confirmDeleteItem"
+            class="px-4 py-1.5 rounded bg-destructive text-destructive-foreground font-medium hover:bg-destructive/90 transition shadow-sm"
+          >
+            确认删除
+          </button>
+        </div>
+      </div>
+    </div>
   </aside>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import {
   FolderTree, History, FolderOpen, FolderPlus, Plus, Trash2, ChevronRight, FolderCode,
-  FileDown, RefreshCw, CheckCircle2, AlertCircle, Loader2, Settings2, Folder, FolderCog
+  FileDown, RefreshCw, CheckCircle2, AlertCircle, Loader2, Settings2, Folder, FolderCog,
+  UnfoldVertical, FoldVertical, Edit3, AlertTriangle
 } from 'lucide-vue-next'
 import { onKeyStroke } from '@vueuse/core'
 import { useProjectStore } from '@/stores/projectStore'
@@ -815,15 +959,112 @@ async function confirmCreateRequest() {
   tabStore.openTab(newReq, targetSubDir.value)
 }
 
-async function deleteSubProject(dir: string) {
-  if (confirm(`确定删除子项目 [${dir}] 及其所有接口吗？此操作无法撤销。`)) {
-    await projectStore.deleteSubProject(dir)
+// 树形结构展开/折叠与接口总数
+const totalRequestsCount = computed(() => {
+  return projectStore.subProjects.reduce((sum, s) => sum + s.requests.length, 0)
+})
+
+function expandAllTree() {
+  for (const sub of projectStore.subProjects) {
+    openSubprojects.value.add(sub.dir_name)
+  }
+  collapsedGroups.value.clear()
+}
+
+function collapseAllTree() {
+  openSubprojects.value.clear()
+}
+
+// 删除确认模态框状态 (彻底解决 WKWebView 原生 confirm 无弹窗问题)
+interface PendingDelete {
+  type: 'request' | 'subproject'
+  subDir: string
+  fileName?: string
+  name: string
+}
+const itemToDelete = ref<PendingDelete | null>(null)
+
+function promptDeleteRequest(subDir: string, req: ApiRequest) {
+  itemToDelete.value = {
+    type: 'request',
+    subDir,
+    fileName: req.fileName || `${req.id}.json`,
+    name: req.name || req.path
   }
 }
 
-async function deleteRequest(subDir: string, fileName: string) {
-  if (confirm(`确定删除接口文件 [${fileName}] 吗？`)) {
-    await projectStore.deleteRequest(subDir, fileName)
+function promptDeleteSubProject(subDir: string, subName: string) {
+  itemToDelete.value = {
+    type: 'subproject',
+    subDir,
+    name: `子项目模块: ${subName} (${subDir})`
+  }
+}
+
+async function confirmDeleteItem() {
+  if (!itemToDelete.value) return
+  const item = itemToDelete.value
+  itemToDelete.value = null
+
+  try {
+    if (item.type === 'request' && item.fileName) {
+      await projectStore.deleteRequest(item.subDir, item.fileName)
+      // 若当前标签页打开了该接口，自动关闭
+      const openTab = tabStore.tabs.find(t => t.fileName === item.fileName || t.requestId === item.fileName)
+      if (openTab) {
+        tabStore.closeTab(openTab.id)
+      }
+      showToast(`接口 [${item.name}] 已成功删除`)
+    } else if (item.type === 'subproject') {
+      await projectStore.deleteSubProject(item.subDir)
+      showToast(`子项目 [${item.name}] 已成功删除`)
+    }
+  } catch (err: any) {
+    showToast(`删除失败: ${err?.message || err}`, true)
+  }
+}
+
+// 接口重命名模态框状态
+interface RenameState {
+  subDir: string
+  fileName: string
+  req: ApiRequest
+}
+const reqToRename = ref<RenameState | null>(null)
+const renameNewTitle = ref('')
+const renameInputRef = ref<HTMLInputElement | null>(null)
+
+function promptRenameRequest(subDir: string, req: ApiRequest) {
+  reqToRename.value = {
+    subDir,
+    fileName: req.fileName || `${req.id}.json`,
+    req
+  }
+  renameNewTitle.value = req.name || ''
+  nextTick(() => {
+    renameInputRef.value?.focus()
+    renameInputRef.value?.select()
+  })
+}
+
+async function confirmRenameRequest() {
+  if (!reqToRename.value || !renameNewTitle.value.trim()) return
+  const { subDir, fileName, req } = reqToRename.value
+  const newName = renameNewTitle.value.trim()
+  reqToRename.value = null
+
+  try {
+    req.name = newName
+    await projectStore.saveRequest(subDir, fileName, req)
+
+    // 同步更新打开的 Tab 标题
+    const openTab = tabStore.tabs.find(t => t.fileName === fileName || t.requestId === req.id)
+    if (openTab) {
+      openTab.title = newName
+    }
+    showToast(`接口已重命名为: ${newName}`)
+  } catch (err: any) {
+    showToast(`重命名失败: ${err?.message || err}`, true)
   }
 }
 
