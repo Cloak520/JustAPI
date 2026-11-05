@@ -37,7 +37,52 @@
     <!-- Tab 页面内容区 -->
     <div class="flex-1 overflow-y-auto">
       <!-- 1. Headers Tab -->
-      <div v-if="activeTab === 'headers'" class="space-y-2">
+      <div v-if="activeTab === 'headers'" class="space-y-3">
+        <!-- 级联继承公共 Headers 提示与列表 -->
+        <div v-if="effectiveInheritedHeaders.length > 0" class="rounded-lg border border-border/70 bg-muted/20 overflow-hidden text-xs">
+          <div
+            @click="showInheritedHeaders = !showInheritedHeaders"
+            class="flex items-center justify-between px-3 py-1.5 cursor-pointer hover:bg-muted/40 transition select-none text-muted-foreground hover:text-foreground"
+          >
+            <div class="flex items-center space-x-2">
+              <ChevronRight
+                class="w-3.5 h-3.5 text-muted-foreground/60 transition-transform duration-150"
+                :class="showInheritedHeaders ? 'rotate-90' : ''"
+              />
+              <span class="font-medium text-[11px] text-foreground/90">公共级联继承 Headers</span>
+              <span class="text-[10px] px-1.5 py-0.2 rounded-full bg-primary/10 text-primary font-mono font-medium">
+                {{ effectiveInheritedHeaders.length }} 个公共 Header
+              </span>
+            </div>
+            <span class="text-[10px] text-muted-foreground/70">
+              {{ showInheritedHeaders ? '收起' : '展开查看' }} (在发送时自动生效)
+            </span>
+          </div>
+
+          <div v-if="showInheritedHeaders" class="border-t border-border/50 divide-y divide-border/30 bg-card/30">
+            <div
+              v-for="h in effectiveInheritedHeaders"
+              :key="h.id"
+              class="flex items-center justify-between px-3 py-1.5 text-[11px] font-mono text-muted-foreground"
+            >
+              <div class="flex items-center space-x-2 truncate">
+                <span
+                  class="text-[9px] px-1.5 py-0.2 rounded font-sans border font-medium shrink-0"
+                  :class="h.inheritedFrom === 'project' ? 'bg-primary/10 text-primary border-primary/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'"
+                >
+                  {{ h.inheritedFrom === 'project' ? '主项目全局' : '子项目' }}
+                </span>
+                <span class="text-foreground font-semibold">{{ h.key }}</span>
+                <span class="text-muted-foreground/60">:</span>
+                <span class="truncate text-foreground/80">{{ h.value }}</span>
+              </div>
+              <span v-if="h.description" class="text-[10px] text-muted-foreground/60 font-sans truncate pl-2">
+                {{ h.description }}
+              </span>
+            </div>
+          </div>
+        </div>
+
         <BulkTextEditor
           v-if="headersTextMode"
           :items="store.headers"
@@ -170,17 +215,27 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Sparkles, Minimize2, Code2, Table2 } from 'lucide-vue-next'
+import { Sparkles, Minimize2, Code2, Table2, ChevronRight } from 'lucide-vue-next'
 import { useRequestStore } from '@/stores/requestStore'
+import { useTabStore } from '@/stores/tabStore'
+import { useProjectStore } from '@/stores/projectStore'
 import KeyValueGrid from './KeyValueGrid.vue'
 import BulkTextEditor from './BulkTextEditor.vue'
 import CodeEditor from '@/components/common/CodeEditor.vue'
 
 const store = useRequestStore()
+const tabStore = useTabStore()
+const projectStore = useProjectStore()
 const activeTab = ref<'headers' | 'params' | 'body'>('headers')
 
 const paramsTextMode = ref(false)
 const headersTextMode = ref(false)
+const showInheritedHeaders = ref(false)
+
+const activeTabItem = computed(() => tabStore.tabs.find(t => t.id === tabStore.activeTabId))
+const effectiveInheritedHeaders = computed(() => {
+  return projectStore.resolveEffectiveHeaders(activeTabItem.value?.subProjectDir)
+})
 
 const isTextMode = computed(() => {
   return activeTab.value === 'headers' ? headersTextMode.value : paramsTextMode.value
@@ -208,7 +263,7 @@ const tabs = computed(() => [
   {
     id: 'headers' as const,
     label: 'Headers',
-    badgeCount: store.headers.filter(h => h.enabled && h.key.trim()).length
+    badgeCount: store.headers.filter(h => h.enabled && h.key.trim()).length + effectiveInheritedHeaders.value.length
   },
   {
     id: 'params' as const,

@@ -135,21 +135,28 @@ export const useProjectStore = defineStore('project', () => {
     // 2) 如果有子项目，并且子项目配置了 headers
     if (subProjectDir) {
       const sub = subProjects.value.find(s => s.dir_name === subProjectDir)
-      if (sub && sub.config.headers) {
-        for (const h of sub.config.headers) {
-          if (h.enabled && h.key.trim()) {
-            const lowerKey = h.key.trim().toLowerCase()
-            // 如果同名，子项目覆盖主项目
-            const existingIdx = result.findIndex(r => r.key.trim().toLowerCase() === lowerKey)
-            const item: KeyValuePair = {
-              ...h,
-              id: `sub_${h.id}`,
-              inheritedFrom: 'subproject'
-            }
-            if (existingIdx !== -1) {
-              result[existingIdx] = item
-            } else {
-              result.push(item)
+      if (sub) {
+        // 若子项目配置了不继承主项目 Headers，清空全局预置
+        if (sub.config.inheritHeaders === false) {
+          result.length = 0
+          keyMap.clear()
+        }
+        if (sub.config.headers) {
+          for (const h of sub.config.headers) {
+            if (h.enabled && h.key.trim()) {
+              const lowerKey = h.key.trim().toLowerCase()
+              // 如果同名，子项目覆盖主项目
+              const existingIdx = result.findIndex(r => r.key.trim().toLowerCase() === lowerKey)
+              const item: KeyValuePair = {
+                ...h,
+                id: `sub_${h.id}`,
+                inheritedFrom: 'subproject'
+              }
+              if (existingIdx !== -1) {
+                result[existingIdx] = item
+              } else {
+                result.push(item)
+              }
             }
           }
         }
