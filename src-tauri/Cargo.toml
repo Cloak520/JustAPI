@@ -23,3 +23,10 @@ tauri-plugin-log = "2"
 log = "0.4"
 rfd = "0.15"
 serde_yaml = "0.9"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

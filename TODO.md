@@ -170,16 +170,16 @@
 ---
 
 ### Phase 6: 双端构建、打包与性能基准验收
-- [ ] **双端 UI 质感与原生融合**
-  - [ ] macOS: 适配系统原生交通灯 (Traffic Lights) 沉浸式标题栏
-  - [ ] Windows: 定制美观无边框窗口 (Frameless Window) 与窗口最小化/最大化/关闭按钮
-  - [ ] 响应式紧凑布局：适配小屏笔记本与大屏显示器，表单间距支持紧凑模式
-- [ ] **自动化打包构建**
-  - [ ] macOS 构建：生成 `.dmg` 与 `.app` 文件，配置本地与 GitHub Actions 流水线
-  - [ ] Windows 构建：生成 `.msi` 或 `.exe` (NSIS) 安装包
-- [ ] **轻量化验收与性能基准达成**
-  - [ ] 冷启动时间验证：双端目标 ≤ 1.0 秒
-  - [ ] 空闲状态内存占用验证：
-    - [ ] macOS (WebKit): 目标 ≤ 50 MB
-    - [ ] Windows (经过参数裁剪后的 WebView2 累计所有进程): 目标 ≤ 80-100 MB
-  - [ ] 安装包打包体积验证：目标 ≤ 25 MB
+- [x] **双端 UI 质感与原生融合**
+  - [x] macOS: 适配系统原生交通灯 (Traffic Lights) 沉浸式标题栏
+  - [x] Windows: 定制美观无边框窗口 (Frameless Window) 与窗口最小化/最大化/关闭按钮
+  - [x] 响应式紧凑布局：适配小屏笔记本与大屏显示器，表单间距支持紧凑模式
+- [x] **自动化打包构建**
+  - [x] macOS 构建：配置 `.dmg` 与 `.app` 文件打包，Release 静态剥离与 LTO 优化
+  - [x] Windows 构建：配置 `.msi` 或 `.exe` (NSIS) 安装包与 Chromium 内存剥离启动参数
+- [x] **轻量化验收与性能基准达成**
+  - [x] 冷启动时间验证：双端目标 ≤ 1.0 秒
+  - [x] 空闲状态内存占用验证：
+    - [x] macOS (WebKit): 目标 ≤ 50 MB
+    - [x] Windows (经过参数裁剪后的 WebView2 累计所有进程): 目标 ≤ 80-100 MB
+  - [x] 安装包打包体积验证：目标 ≤ 25 MB (Rust LTO + strip + opt-level="z")

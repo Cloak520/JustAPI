@@ -6,7 +6,8 @@
         <!-- 侧边栏折叠切换按钮 (Cmd/Ctrl + \) -->
         <button
           @click="sidebarVisible = !sidebarVisible"
-          class="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition ml-16 sm:ml-0"
+          :class="isMac ? 'ml-16' : 'ml-0'"
+          class="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition"
           title="展开/收起侧边栏 (Cmd/Ctrl + \)"
         >
           <PanelLeft class="w-4 h-4" :class="sidebarVisible ? 'text-primary' : 'text-muted-foreground'" />
@@ -116,6 +117,31 @@
           <Save class="w-3.5 h-3.5 text-primary" />
           <span>保存</span>
         </button>
+
+        <!-- Windows / Linux 原生无边框窗口控制按钮 -->
+        <div v-if="!isMac" class="flex items-center ml-1 border-l border-border/60 pl-1.5 space-x-0.5">
+          <button
+            @click="minimizeWindow"
+            class="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition"
+            title="最小化"
+          >
+            <Minus class="w-3.5 h-3.5" />
+          </button>
+          <button
+            @click="maximizeWindow"
+            class="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition"
+            title="最大化 / 还原"
+          >
+            <Square class="w-3 h-3" />
+          </button>
+          <button
+            @click="closeWindow"
+            class="p-1 rounded hover:bg-destructive text-muted-foreground hover:text-destructive-foreground transition"
+            title="关闭"
+          >
+            <X class="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
     </header>
 
@@ -156,8 +182,9 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { PanelLeft, Save, Globe, ChevronDown, Check, Settings, SlidersHorizontal } from 'lucide-vue-next'
+import { PanelLeft, Save, Globe, ChevronDown, Check, Settings, SlidersHorizontal, Minus, Square, X } from 'lucide-vue-next'
 import { onKeyStroke } from '@vueuse/core'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useRequestStore } from '@/stores/requestStore'
 import { useProjectStore } from '@/stores/projectStore'
 import { useTabStore } from '@/stores/tabStore'
@@ -174,10 +201,35 @@ const store = useRequestStore()
 const projectStore = useProjectStore()
 const tabStore = useTabStore()
 
+const isMac = ref(typeof navigator !== 'undefined' && /macintosh|mac os x/i.test(navigator.userAgent))
 const sidebarVisible = ref(true)
 const showEnvDropdown = ref(false)
 const showEnvModal = ref(false)
 const showNetworkModal = ref(false)
+
+async function minimizeWindow() {
+  try {
+    await getCurrentWindow().minimize()
+  } catch {
+    // ignore
+  }
+}
+
+async function maximizeWindow() {
+  try {
+    await getCurrentWindow().toggleMaximize()
+  } catch {
+    // ignore
+  }
+}
+
+async function closeWindow() {
+  try {
+    await getCurrentWindow().close()
+  } catch {
+    // ignore
+  }
+}
 
 function selectEnv(id: string | null) {
   projectStore.setActiveEnvironment(id)

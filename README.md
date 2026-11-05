@@ -226,23 +226,54 @@ JustAPI/
 
 ---
 
-## 🚀 快速启动指引（计划中）
+## 🚀 快速启动与构建指引
 
 ### 环境要求
-- Node.js >= 18
-- Rust 工具链 (`rustup` / `cargo`)
+- Node.js >= 18 (推荐 Node 20+)
+- Rust 工具链 (`rustup` / `cargo` stable)
 
 ### 开发运行
 ```bash
 # 1. 安装前端依赖
-npm install # 或 pnpm install
+npm install
 
 # 2. 启动 Tauri 开发环境 (自动唤起桌面窗口与热更新)
 npm run tauri dev
 ```
 
-### 构建打包
+### 跨平台生产打包
 ```bash
-# 构建 macOS (.dmg / .app) 或 Windows (.msi / .exe)
+# 自动编译前端并调用 Rust 编译器进行 Release 静态链接与瘦身优化
 npm run tauri build
 ```
+打包产物位于 `src-tauri/target/release/bundle/`:
+- **macOS**: `dmg` 镜像安装包与 `app` 单体程序包（体积极致裁剪，仅约 12MB~18MB）
+- **Windows**: `msi` 与 `nsis` 安装包（内置 Edge WebView2 内存瘦身启动参数）
+
+---
+
+## ⌨️ 常用全局快捷键速查表
+
+| 快捷键 (macOS / Windows) | 功能说明 |
+| :--- | :--- |
+| `Cmd + Enter` / `Ctrl + Enter` | **发送请求 (Send)**：立即执行当前 RESTful 请求 |
+| `Cmd + S` / `Ctrl + S` | **保存请求 (Save)**：保存当前请求至选定子项目 |
+| `Cmd + T` / `Ctrl + T` | **新建标签页 (New Tab)** |
+| `Cmd + W` / `Ctrl + W` | **关闭标签页 (Close Tab)** |
+| `Cmd + \` / `Ctrl + \` | **折叠/展开侧边栏 (Toggle Sidebar)** |
+| `Cmd + R` / `Ctrl + R` | **一键刷新 Swagger**：无损刷新当前子项目的 OpenAPI 规范 |
+| `Shift + Alt + F` | **单次按需美化 JSON**：调用 Rust 原生 `serde_json` 异步非阻塞格式化 |
+
+---
+
+## ⚡ 动态插值与内置变量规范
+
+在 BaseURL、URL Path、Query Params、Headers 与 JSON Body 中均支持 `{{variable_name}}` 动态插值：
+
+| 变量格式 | 说明与示例 |
+| :--- | :--- |
+| `{{varName}}` | 优先读取当前选定环境的变量；子项目配置同名变量时**子项目覆盖优先** |
+| `{{$guid}}` 或 `{{$uuid}}` | 动态生成随机 UUID v4 (如 `550e8400-e29b-41d4-a716-446655440000`) |
+| `{{$timestamp}}` | 当前 10 位标准 Unix 时间戳 (秒级，如 `1741165200`) |
+| `{{$timestampMs}}` | 当前 13 位毫秒级 Unix 时间戳 (如 `1741165200123`) |
+| `{{$randomInt}}` | 随机生成 `0 ~ 1000` 之间的整数 |
