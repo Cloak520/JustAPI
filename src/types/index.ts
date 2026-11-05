@@ -23,6 +23,7 @@ export interface ApiRequest {
   bodyContent: string
   subProjectId?: string
   fileName?: string
+  group?: string
 }
 
 export interface CookieItem {
@@ -111,4 +112,5 @@ export interface TabItem {
   subProjectDir?: string
   fileName?: string
   requestId?: string
+  group?: string
 }

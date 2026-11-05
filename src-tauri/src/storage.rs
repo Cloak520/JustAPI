@@ -45,6 +45,8 @@ pub struct SavedRequest {
     pub sub_project_id: Option<String>,
     #[serde(default, alias = "file_name")]
     pub file_name: Option<String>,
+    #[serde(default)]
+    pub group: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -225,7 +227,7 @@ pub fn load_project_from_dir(path_str: &str) -> Result<FullProjectData, String> 
                 if sub_json_path.exists() {
                     if let Ok(text) = fs::read_to_string(&sub_json_path) {
                         if let Ok(sub_config) = serde_json::from_str::<SubProjectMetadata>(&text) {
-                            // 扫描该子项目下的所有请求 *.json (排除 .subproject.json)
+                            // 扫描该子项目下的所有请求 *.json (包含根目录与分组子目录)
                             let mut requests = Vec::new();
                             if let Ok(req_entries) = fs::read_dir(&p) {
                                 for req_entry in req_entries.flatten() {
@@ -237,6 +239,29 @@ pub fn load_project_from_dir(path_str: &str) -> Result<FullProjectData, String> 
                                                 if let Ok(mut saved_req) = serde_json::from_str::<SavedRequest>(&req_text) {
                                                     saved_req.file_name = Some(fname);
                                                     requests.push(saved_req);
+                                                }
+                                            }
+                                        }
+                                    } else if req_path.is_dir() {
+                                        let group_name = req_entry.file_name().to_string_lossy().to_string();
+                                        if !group_name.starts_with('.') && group_name != "node_modules" {
+                                            if let Ok(sub_entries) = fs::read_dir(&req_path) {
+                                                for sub_entry in sub_entries.flatten() {
+                                                    let sub_file_path = sub_entry.path();
+                                                    if sub_file_path.is_file() {
+                                                        let sub_fname = sub_entry.file_name().to_string_lossy().to_string();
+                                                        if sub_fname.ends_with(".json") {
+                                                            if let Ok(req_text) = fs::read_to_string(&sub_file_path) {
+                                                                if let Ok(mut saved_req) = serde_json::from_str::<SavedRequest>(&req_text) {
+                                                                    saved_req.file_name = Some(format!("{}/{}", group_name, sub_fname));
+                                                                    if saved_req.group.is_none() {
+                                                                        saved_req.group = Some(group_name.clone());
+                                                                    }
+                                                                    requests.push(saved_req);
+                                                                }
+                                                            }
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
@@ -338,6 +363,11 @@ pub fn save_request_file(
     };
 
     let file_path = sub_dir.join(&clean_fname);
+    if let Some(parent) = file_path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent).map_err(|e| format!("创建请求分组目录失败: {}", e))?;
+        }
+    }
     let formatted = serde_json::to_string_pretty(&request)
         .map_err(|e| format!("序列化请求文件失败: {}", e))?;
     fs::write(file_path, formatted).map_err(|e| format!("写入请求文件失败: {}", e))
@@ -443,9 +473,28 @@ mod tests {
             body_content: "{}".to_string(),
             sub_project_id: Some("auth_service".to_string()),
             file_name: None,
+            group: None,
         };
         save_request_file(&path_str, "auth_service", "login.json", req).unwrap();
         assert!(temp_dir.join("auth_service").join("login.json").exists());
+
+        // 3.5 保存分组请求文件 (位于子文件夹内)
+        let req_grouped = SavedRequest {
+            id: "req_user_1".to_string(),
+            name: "获取用户详情".to_string(),
+            method: "GET".to_string(),
+            path: "/users/1".to_string(),
+            path_params: vec![],
+            query_params: vec![],
+            headers: vec![],
+            body_type: "none".to_string(),
+            body_content: "".to_string(),
+            sub_project_id: Some("auth_service".to_string()),
+            file_name: None,
+            group: Some("用户管理".to_string()),
+        };
+        save_request_file(&path_str, "auth_service", "用户管理/get_user.json", req_grouped).unwrap();
+        assert!(temp_dir.join("auth_service").join("用户管理").join("get_user.json").exists());
 
         // 4. 追加历史记录
         let hist = HistoryItem {
@@ -464,8 +513,10 @@ mod tests {
         // 5. 重新加载完整项目数据
         let loaded = load_project_from_dir(&path_str).unwrap();
         assert_eq!(loaded.sub_projects.len(), 1);
-        assert_eq!(loaded.sub_projects[0].requests.len(), 1);
-        assert_eq!(loaded.sub_projects[0].requests[0].name, "登录接口");
+        assert_eq!(loaded.sub_projects[0].requests.len(), 2);
+        let user_req = loaded.sub_projects[0].requests.iter().find(|r| r.id == "req_user_1").unwrap();
+        assert_eq!(user_req.group, Some("用户管理".to_string()));
+        assert_eq!(user_req.file_name, Some("用户管理/get_user.json".to_string()));
         assert_eq!(loaded.history.len(), 1);
 
         // 清理临时测试目录

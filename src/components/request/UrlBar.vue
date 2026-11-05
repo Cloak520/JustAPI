@@ -21,6 +21,12 @@
 
       <!-- URL 输入框群组 (BaseURL 拼接展示 + Path 输入) -->
       <div class="flex-1 flex items-center bg-card border border-border rounded-lg overflow-hidden focus-within:ring-1 focus-within:ring-primary transition">
+        <!-- 分组标记 (若存在) -->
+        <div v-if="store.group" class="px-2.5 py-1.5 bg-amber-500/10 text-amber-400 text-xs font-mono border-r border-border flex items-center space-x-1 shrink-0 select-none" :title="`分组: ${store.group}`">
+          <Folder class="w-3 h-3 text-amber-400" />
+          <span class="max-w-[120px] truncate font-sans font-medium text-[11px]">{{ store.group }}</span>
+        </div>
+
         <!-- 继承的 BaseURL 标签/前缀 -->
         <div class="px-2.5 py-1.5 bg-muted/60 text-muted-foreground text-xs font-mono border-r border-border flex items-center space-x-1.5 shrink-0 select-none">
           <Globe class="w-3.5 h-3.5 text-primary/80" />
@@ -96,7 +102,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ChevronDown, Send, Loader2, Globe } from 'lucide-vue-next'
+import { ChevronDown, Send, Loader2, Globe, Folder } from 'lucide-vue-next'
 import { useRequestStore } from '@/stores/requestStore'
 import { onKeyStroke } from '@vueuse/core'
 

@@ -264,8 +264,10 @@ async function saveCurrentRequest() {
     return
   }
 
+  const groupName = activeTab?.group || store.group || undefined
   const reqName = activeTab?.title || store.path || '未命名请求'
-  const fileName = activeTab?.fileName || `${reqName.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5-]/g, '_')}_${Date.now().toString().slice(-4)}.json`
+  const baseFname = `${reqName.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5-]/g, '_')}_${Date.now().toString().slice(-4)}.json`
+  const fileName = activeTab?.fileName || (groupName ? `${groupName}/${baseFname}` : baseFname)
 
   const reqToSave: ApiRequest = {
     id: activeTab?.requestId || crypto.randomUUID(),
@@ -278,7 +280,8 @@ async function saveCurrentRequest() {
     bodyType: store.bodyType,
     bodyContent: store.bodyContent,
     subProjectId: targetSubDir,
-    fileName
+    fileName,
+    group: groupName
   }
 
   await projectStore.saveRequest(targetSubDir, fileName, reqToSave)
@@ -286,6 +289,7 @@ async function saveCurrentRequest() {
     activeTab.subProjectDir = targetSubDir
     activeTab.fileName = fileName
     activeTab.requestId = reqToSave.id
+    activeTab.group = groupName
     activeTab.isDirty = false
   }
 }

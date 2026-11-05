@@ -97,6 +97,15 @@ pub fn parse_swagger_content(content: &str) -> Result<SwaggerParsedResult, Strin
                         let summary = op.get("summary").and_then(|s| s.as_str());
                         let op_id = op.get("operationId").and_then(|o| o.as_str());
 
+                        // 提取 Swagger / OpenAPI 中的 tags 作为接口分组名称
+                        let tag = op
+                            .get("tags")
+                            .and_then(|t| t.as_array())
+                            .and_then(|arr| arr.first())
+                            .and_then(|t| t.as_str())
+                            .map(|s| s.trim().to_string())
+                            .filter(|s| !s.is_empty());
+
                         let req_name = summary
                             .or(op_id)
                             .unwrap_or_else(|| path_str.as_str())
@@ -161,13 +170,15 @@ pub fn parse_swagger_content(content: &str) -> Result<SwaggerParsedResult, Strin
                             }
                         }
 
-                        let safe_id = format!(
-                            "{}_{}",
-                            method_upper,
-                            path_str.replace('/', "_").replace(['{', '}'], "")
-                        );
+                        let clean_path_id = path_str.trim_start_matches('/').replace('/', "_").replace(['{', '}'], "");
+                        let safe_id = format!("{}_{}", method_upper, clean_path_id);
 
-                        let file_name = format!("{}.json", safe_id);
+                        let (file_name, group_name) = if let Some(ref g) = tag {
+                            let clean_g = g.replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "_");
+                            (format!("{}/{}.json", clean_g, safe_id), Some(g.clone()))
+                        } else {
+                            (format!("{}.json", safe_id), None)
+                        };
 
                         requests.push(SavedRequest {
                             id: safe_id,
@@ -181,6 +192,7 @@ pub fn parse_swagger_content(content: &str) -> Result<SwaggerParsedResult, Strin
                             body_content,
                             sub_project_id: None,
                             file_name: Some(file_name),
+                            group: group_name,
                         });
                     }
                 }
@@ -276,9 +288,12 @@ pub fn smart_merge(
                 new_req.body_type = existing.body_type.clone();
             }
 
-            // 5. 保持文件名一致
+            // 5. 保持文件名与分组一致
             new_req.file_name = existing.file_name.clone();
             new_req.id = existing.id.clone();
+            if new_req.group.is_none() {
+                new_req.group = existing.group.clone();
+            }
 
             stats.updated += 1;
             merged.push(new_req);
@@ -322,12 +337,14 @@ mod tests {
             "paths": {
                 "/pets": {
                     "get": {
+                        "tags": ["Pets"],
                         "summary": "获取宠物列表",
                         "parameters": [
                             { "name": "limit", "in": "query", "description": "条数", "default": "10" }
                         ]
                     },
                     "post": {
+                        "tags": ["Pets"],
                         "summary": "创建宠物",
                         "requestBody": {
                             "content": {
@@ -343,6 +360,8 @@ mod tests {
         assert_eq!(parsed.title, "Petstore Test API");
         assert_eq!(parsed.base_url.unwrap(), "https://petstore.example.com/v1");
         assert_eq!(parsed.requests.len(), 2);
+        assert_eq!(parsed.requests[0].group, Some("Pets".to_string()));
+        assert_eq!(parsed.requests[0].file_name, Some("Pets/GET_pets.json".to_string()));
 
         // 模拟用户在本地调试过 /pets GET 接口，修改了 limit 参数为 50，并自定义了一个 Header
         let mut user_req = parsed.requests[0].clone();
@@ -369,6 +388,7 @@ mod tests {
             body_content: "".to_string(),
             sub_project_id: None,
             file_name: Some("old_api.json".to_string()),
+            group: None,
         };
 
         let existing = vec![user_req, old_req];

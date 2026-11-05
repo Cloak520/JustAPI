@@ -27,6 +27,7 @@ export const useTabStore = defineStore('tab', () => {
     const reqStore = useRequestStore()
     reqStore.method = 'GET'
     reqStore.path = '/get'
+    reqStore.group = ''
     reqStore.queryParams = []
     reqStore.headers = []
     reqStore.bodyType = 'none'
@@ -51,7 +52,8 @@ export const useTabStore = defineStore('tab', () => {
       isDirty: false,
       subProjectDir,
       fileName: req.fileName,
-      requestId: req.id
+      requestId: req.id,
+      group: req.group
     })
     activeTabId.value = id
     loadRequestToStore(req)
@@ -61,6 +63,7 @@ export const useTabStore = defineStore('tab', () => {
     const reqStore = useRequestStore()
     reqStore.method = req.method
     reqStore.path = req.path
+    reqStore.group = req.group || ''
     reqStore.pathParams = req.pathParams || []
     reqStore.queryParams = req.queryParams || []
     reqStore.headers = req.headers || []

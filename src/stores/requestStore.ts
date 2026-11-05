@@ -23,6 +23,7 @@ export const useRequestStore = defineStore('request', () => {
   const method = ref<HttpMethod>('GET')
   const baseUrl = ref('https://httpbin.org')
   const path = ref('/get')
+  const group = ref('')
   const pathParams = ref<KeyValuePair[]>([])
   const queryParams = ref<KeyValuePair[]>([
     { id: '1', key: 'name', value: 'justapi', enabled: true, description: 'Client name' }
@@ -294,6 +295,7 @@ export const useRequestStore = defineStore('request', () => {
     method,
     baseUrl,
     path,
+    group,
     pathParams,
     queryParams,
     headers,

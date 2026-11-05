@@ -174,35 +174,135 @@
             </div>
           </div>
 
-          <!-- 子项目下的请求列表 -->
-          <div v-if="isSubOpen(sub.dir_name)" class="divide-y divide-border/40 pl-4 bg-background/30">
-            <div
-              v-for="req in sub.requests"
-              :key="req.id || req.fileName"
-              @click="tabStore.openTab(req, sub.dir_name)"
-              class="flex items-center justify-between py-1.5 pr-2 pl-1 cursor-pointer hover:bg-muted/40 transition group"
-            >
-              <div class="flex items-center space-x-2 truncate">
-                <span class="font-mono font-bold text-[10px]" :class="getMethodColor(req.method)">
-                  {{ req.method }}
-                </span>
-                <span
-                  class="truncate text-[11px] font-medium"
-                  :class="req.name.includes('[已下线]') ? 'text-muted-foreground line-through opacity-70' : 'text-foreground/90'"
-                  :title="req.name || req.path"
+          <!-- 子项目下的请求列表 (支持 Swagger Tag / 目录分组与折叠) -->
+          <div v-if="isSubOpen(sub.dir_name)" class="pl-2 bg-background/30 text-xs">
+            <!-- 1. 若存在分组，按目录折叠展示 -->
+            <template v-if="getSubProjectGroups(sub.requests).hasGroups">
+              <div
+                v-for="grp in getSubProjectGroups(sub.requests).groups"
+                :key="grp.name"
+                class="py-0.5"
+              >
+                <!-- 分组标题栏 -->
+                <div
+                  @click="toggleGroup(sub.dir_name, grp.name)"
+                  class="flex items-center justify-between py-1 px-1.5 rounded cursor-pointer hover:bg-muted/50 transition group/grp text-muted-foreground hover:text-foreground select-none"
                 >
-                  {{ req.name || req.path }}
-                </span>
+                  <div class="flex items-center space-x-1.5 truncate">
+                    <ChevronRight
+                      class="w-3 h-3 text-muted-foreground/60 transition-transform duration-150"
+                      :class="isGroupOpen(sub.dir_name, grp.name) ? 'rotate-90' : ''"
+                    />
+                    <Folder class="w-3.5 h-3.5 text-amber-400/80 shrink-0" />
+                    <span class="font-medium text-[11px] truncate">{{ grp.name }}</span>
+                  </div>
+                  <span class="text-[9px] text-muted-foreground font-mono bg-muted/80 px-1.5 py-0.2 rounded-full">
+                    {{ grp.requests.length }}
+                  </span>
+                </div>
+
+                <!-- 分组内的接口项 -->
+                <div
+                  v-if="isGroupOpen(sub.dir_name, grp.name)"
+                  class="pl-3.5 divide-y divide-border/20 border-l border-border/40 ml-2.5 my-0.5"
+                >
+                  <div
+                    v-for="req in grp.requests"
+                    :key="req.id || req.fileName"
+                    @click="tabStore.openTab(req, sub.dir_name)"
+                    class="flex items-center justify-between py-1.5 pr-2 pl-1 cursor-pointer hover:bg-muted/40 transition group"
+                  >
+                    <div class="flex items-center space-x-2 truncate">
+                      <span class="font-mono font-bold text-[10px]" :class="getMethodColor(req.method)">
+                        {{ req.method }}
+                      </span>
+                      <span
+                        class="truncate text-[11px] font-medium"
+                        :class="req.name.includes('[已下线]') ? 'text-muted-foreground line-through opacity-70' : 'text-foreground/90'"
+                        :title="req.name || req.path"
+                      >
+                        {{ req.name || req.path }}
+                      </span>
+                    </div>
+
+                    <button
+                      @click.stop="deleteRequest(sub.dir_name, req.fileName!)"
+                      class="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground/50 hover:text-destructive transition"
+                      title="删除请求"
+                    >
+                      <Trash2 class="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              <button
-                @click.stop="deleteRequest(sub.dir_name, req.fileName!)"
-                class="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground/50 hover:text-destructive transition"
-                title="删除请求"
-              >
-                <Trash2 class="w-3 h-3" />
-              </button>
-            </div>
+              <!-- 未分组的请求 (若有) -->
+              <div v-if="getSubProjectGroups(sub.requests).ungrouped.length > 0" class="pt-1">
+                <div class="px-2 py-0.5 text-[9px] text-muted-foreground/60 font-semibold uppercase tracking-wider">
+                  其他接口
+                </div>
+                <div
+                  v-for="req in getSubProjectGroups(sub.requests).ungrouped"
+                  :key="req.id || req.fileName"
+                  @click="tabStore.openTab(req, sub.dir_name)"
+                  class="flex items-center justify-between py-1.5 pr-2 pl-1 cursor-pointer hover:bg-muted/40 transition group"
+                >
+                  <div class="flex items-center space-x-2 truncate">
+                    <span class="font-mono font-bold text-[10px]" :class="getMethodColor(req.method)">
+                      {{ req.method }}
+                    </span>
+                    <span
+                      class="truncate text-[11px] font-medium"
+                      :class="req.name.includes('[已下线]') ? 'text-muted-foreground line-through opacity-70' : 'text-foreground/90'"
+                      :title="req.name || req.path"
+                    >
+                      {{ req.name || req.path }}
+                    </span>
+                  </div>
+
+                  <button
+                    @click.stop="deleteRequest(sub.dir_name, req.fileName!)"
+                    class="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground/50 hover:text-destructive transition"
+                    title="删除请求"
+                  >
+                    <Trash2 class="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            </template>
+
+            <!-- 2. 若全未分组，保持经典平铺展示 -->
+            <template v-else>
+              <div class="divide-y divide-border/40">
+                <div
+                  v-for="req in sub.requests"
+                  :key="req.id || req.fileName"
+                  @click="tabStore.openTab(req, sub.dir_name)"
+                  class="flex items-center justify-between py-1.5 pr-2 pl-1 cursor-pointer hover:bg-muted/40 transition group"
+                >
+                  <div class="flex items-center space-x-2 truncate">
+                    <span class="font-mono font-bold text-[10px]" :class="getMethodColor(req.method)">
+                      {{ req.method }}
+                    </span>
+                    <span
+                      class="truncate text-[11px] font-medium"
+                      :class="req.name.includes('[已下线]') ? 'text-muted-foreground line-through opacity-70' : 'text-foreground/90'"
+                      :title="req.name || req.path"
+                    >
+                      {{ req.name || req.path }}
+                    </span>
+                  </div>
+
+                  <button
+                    @click.stop="deleteRequest(sub.dir_name, req.fileName!)"
+                    class="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground/50 hover:text-destructive transition"
+                    title="删除请求"
+                  >
+                    <Trash2 class="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            </template>
 
             <div v-if="sub.requests.length === 0" class="py-2 text-center text-[10px] text-muted-foreground/60">
               空模块，点击上方 + 添加请求
@@ -326,10 +426,11 @@
           </div>
 
           <div class="text-[11px] text-muted-foreground/80 leading-relaxed bg-primary/5 border border-primary/10 p-2.5 rounded-lg space-y-1">
-            <div class="font-medium text-primary">💡 智能无损合并规则 (Smart Merge)：</div>
-            <div>• 已有接口：无损保留此前填写的具体测试参数值与自定义 Header</div>
-            <div>• 新增接口：自动添加到该子项目</div>
-            <div>• 后端已删除接口：标记为 <code class="text-amber-400 font-mono">[已下线]</code>，坚决不删本地文件</div>
+            <div class="font-medium text-primary">💡 智能导入与无损合并规则：</div>
+            <div>• <b>自动分类分组</b>：按 Swagger Tags 归类到目录分组中，支持在左侧折叠查看</div>
+            <div>• <b>已有接口</b>：无损保留此前填写的具体测试参数值与自定义 Header</div>
+            <div>• <b>新增接口</b>：自动按分组添加到该子项目</div>
+            <div>• <b>已删除接口</b>：标记为 <code class="text-amber-400 font-mono">[已下线]</code>，坚决不删本地文件</div>
           </div>
         </div>
 
@@ -476,7 +577,7 @@
 import { ref } from 'vue'
 import {
   FolderTree, History, FolderOpen, FolderPlus, Plus, Trash2, ChevronRight, FolderCode,
-  FileDown, RefreshCw, CheckCircle2, AlertCircle, Loader2, Settings2
+  FileDown, RefreshCw, CheckCircle2, AlertCircle, Loader2, Settings2, Folder
 } from 'lucide-vue-next'
 import { onKeyStroke } from '@vueuse/core'
 import { useProjectStore } from '@/stores/projectStore'
@@ -544,6 +645,55 @@ function toggleSubProject(dir: string) {
     openSubprojects.value.delete(dir)
   } else {
     openSubprojects.value.add(dir)
+  }
+}
+
+// 接口目录与分组 (Swagger Tags / Folders) 折叠状态
+interface RequestGroup {
+  name: string
+  requests: ApiRequest[]
+}
+
+const collapsedGroups = ref<Set<string>>(new Set())
+
+function isGroupOpen(subDir: string, groupName: string) {
+  return !collapsedGroups.value.has(`${subDir}:${groupName}`)
+}
+
+function toggleGroup(subDir: string, groupName: string) {
+  const key = `${subDir}:${groupName}`
+  if (collapsedGroups.value.has(key)) {
+    collapsedGroups.value.delete(key)
+  } else {
+    collapsedGroups.value.add(key)
+  }
+}
+
+function getSubProjectGroups(requests: ApiRequest[]): { groups: RequestGroup[]; ungrouped: ApiRequest[]; hasGroups: boolean } {
+  const groupMap = new Map<string, ApiRequest[]>()
+  const ungrouped: ApiRequest[] = []
+
+  for (const req of requests) {
+    if (req.group && req.group.trim()) {
+      const gName = req.group.trim()
+      if (!groupMap.has(gName)) {
+        groupMap.set(gName, [])
+      }
+      groupMap.get(gName)!.push(req)
+    } else {
+      ungrouped.push(req)
+    }
+  }
+
+  const groups: RequestGroup[] = []
+  for (const [name, reqs] of groupMap.entries()) {
+    groups.push({ name, requests: reqs })
+  }
+
+  return {
+    groups,
+    ungrouped,
+    hasGroups: groups.length > 0
   }
 }
 
