@@ -1,18 +1,18 @@
 <template>
   <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-    <div class="flex flex-col w-full max-w-3xl h-[560px] bg-card border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div class="flex flex-col w-full max-w-4xl h-[560px] bg-card border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
       <!-- 模态框顶部标题 -->
       <div class="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/40 shrink-0">
-        <div class="flex items-center space-x-2">
-          <div class="w-6 h-6 rounded-md bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+        <div class="flex items-center space-x-2 shrink-0 whitespace-nowrap">
+          <div class="w-6 h-6 rounded-md bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
             <Globe class="w-3.5 h-3.5" />
           </div>
-          <h3 class="font-semibold text-sm">项目环境变量管理</h3>
-          <span v-pre class="text-xs text-muted-foreground">(支持 {{variable_name}} 动态插值)</span>
+          <h3 class="font-semibold text-sm whitespace-nowrap">项目环境变量管理</h3>
+          <span v-pre class="text-xs text-muted-foreground whitespace-nowrap">(支持 {{variable_name}} 动态插值)</span>
         </div>
         <button
           @click="close"
-          class="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition"
+          class="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition shrink-0"
         >
           <X class="w-4 h-4" />
         </button>
@@ -21,12 +21,12 @@
       <!-- 模态框主体内容：左右分栏 (左侧环境列表，右侧变量编辑器) -->
       <div class="flex-1 flex min-h-0 overflow-hidden">
         <!-- 左侧：环境配置列表 (Dev, Test, Prod 等) -->
-        <div class="w-56 border-r border-border bg-muted/20 flex flex-col shrink-0">
-          <div class="flex items-center justify-between px-3 py-2 border-b border-border text-xs text-muted-foreground font-medium">
+        <div class="w-52 border-r border-border bg-muted/20 flex flex-col shrink-0">
+          <div class="flex items-center justify-between px-3 py-2 border-b border-border text-xs text-muted-foreground font-medium shrink-0 whitespace-nowrap">
             <span>环境列表</span>
             <button
               @click="addEnvironment"
-              class="flex items-center space-x-1 px-1.5 py-0.5 rounded text-primary hover:bg-primary/10 transition text-xs"
+              class="flex items-center space-x-1 px-1.5 py-0.5 rounded text-primary hover:bg-primary/10 transition text-xs shrink-0 whitespace-nowrap"
               title="新建一套环境"
             >
               <Plus class="w-3.5 h-3.5" />
@@ -52,7 +52,7 @@
                 <span class="truncate">{{ env.name }}</span>
               </div>
 
-              <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition" @click.stop>
+              <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition shrink-0" @click.stop>
                 <button
                   v-if="activeEnvId !== env.id"
                   @click="setAsActive(env.id)"
@@ -81,43 +81,43 @@
         <div class="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
           <template v-if="currentSelectedEnv">
             <!-- 环境名称与模式切换 -->
-            <div class="flex items-center justify-between px-4 py-2.5 border-b border-border bg-card/40 shrink-0">
-              <div class="flex items-center space-x-3">
-                <div class="flex items-center space-x-2">
-                  <span class="text-xs text-muted-foreground shrink-0 font-medium">环境名称:</span>
+            <div class="flex items-center justify-between px-4 py-2.5 border-b border-border bg-card/40 shrink-0 gap-3">
+              <div class="flex items-center space-x-3 shrink-0 whitespace-nowrap">
+                <div class="flex items-center space-x-2 shrink-0 whitespace-nowrap">
+                  <span class="text-xs text-muted-foreground shrink-0 font-medium whitespace-nowrap">环境名称:</span>
                   <input
                     v-model="currentSelectedEnv.name"
                     type="text"
                     placeholder="例如: Dev, Test, Prod"
-                    class="text-xs px-2 py-1 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary w-44 font-medium"
+                    class="text-xs px-2 py-1 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary w-40 font-medium"
                   />
                 </div>
 
-                <!-- 显式激活按钮 -->
+                <!-- 显式激活按钮 (防止换行) -->
                 <button
                   @click="toggleActiveEnv(currentSelectedEnv.id)"
-                  class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition border"
+                  class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition border shrink-0 whitespace-nowrap"
                   :class="activeEnvId === currentSelectedEnv.id ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-muted/40 text-muted-foreground border-border hover:text-foreground'"
                   :title="activeEnvId === currentSelectedEnv.id ? '当前环境已激活，点击取消激活' : '点击设为当前激活生效环境'"
                 >
-                  <Check class="w-3.5 h-3.5" :class="activeEnvId === currentSelectedEnv.id ? 'text-emerald-400' : 'text-muted-foreground'" />
-                  <span>{{ activeEnvId === currentSelectedEnv.id ? '已激活 (当前生效)' : '设为激活环境' }}</span>
+                  <Check class="w-3.5 h-3.5 shrink-0" :class="activeEnvId === currentSelectedEnv.id ? 'text-emerald-400' : 'text-muted-foreground'" />
+                  <span class="whitespace-nowrap">{{ activeEnvId === currentSelectedEnv.id ? '已激活 (当前生效)' : '设为激活环境' }}</span>
                 </button>
               </div>
 
-              <!-- 表格 vs 文本批量模式切换 -->
-              <div class="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border text-[11px]">
+              <!-- 表格 vs 文本批量模式切换 (防止换行) -->
+              <div class="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border text-[11px] shrink-0 whitespace-nowrap">
                 <button
                   @click="mode = 'grid'"
                   :class="mode === 'grid' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
-                  class="px-2.5 py-0.5 rounded transition font-medium"
+                  class="px-2.5 py-0.5 rounded transition font-medium whitespace-nowrap"
                 >
                   表格模式
                 </button>
                 <button
                   @click="mode = 'bulk'"
                   :class="mode === 'bulk' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
-                  class="px-2.5 py-0.5 rounded transition font-medium"
+                  class="px-2.5 py-0.5 rounded transition font-medium whitespace-nowrap"
                 >
                   批量文本
                 </button>
@@ -129,13 +129,13 @@
               <!-- 1. 表格模式 -->
               <div v-if="mode === 'grid'" class="flex flex-col space-y-2">
                 <div class="flex items-center justify-between text-xs text-muted-foreground pb-1 border-b border-border/60">
-                  <div class="flex items-center space-x-4">
-                    <span class="w-48 pl-2">变量名称 (Key)</span>
-                    <span class="flex-1">变量值 (Value)</span>
+                  <div class="flex items-center space-x-4 shrink-0 whitespace-nowrap">
+                    <span class="w-48 pl-2 shrink-0 whitespace-nowrap">变量名称 (Key)</span>
+                    <span class="flex-1 shrink-0 whitespace-nowrap">变量值 (Value)</span>
                   </div>
                   <button
                     @click="addVariableRow"
-                    class="flex items-center space-x-1 px-2 py-0.5 rounded bg-muted hover:bg-muted/80 text-foreground text-xs transition"
+                    class="flex items-center space-x-1 px-2 py-0.5 rounded bg-muted hover:bg-muted/80 text-foreground text-xs transition shrink-0 whitespace-nowrap"
                   >
                     <Plus class="w-3 h-3 text-primary" />
                     <span>添加变量</span>
@@ -205,23 +205,23 @@ timeout=5000"
 
       <!-- 模态框底部操作栏 -->
       <div class="flex items-center justify-between px-5 py-3 border-t border-border bg-muted/40 shrink-0">
-        <div v-pre class="flex items-center space-x-2 text-xs text-muted-foreground">
+        <div v-pre class="flex items-center space-x-2 text-xs text-muted-foreground shrink-0 whitespace-nowrap">
           <span>内置动态变量:</span>
           <code class="px-1 py-0.5 rounded bg-muted font-mono text-[10px]">&#123;&#123;$guid&#125;&#125;</code>
           <code class="px-1 py-0.5 rounded bg-muted font-mono text-[10px]">&#123;&#123;$timestamp&#125;&#125;</code>
           <code class="px-1 py-0.5 rounded bg-muted font-mono text-[10px]">&#123;&#123;$randomInt&#125;&#125;</code>
         </div>
 
-        <div class="flex items-center space-x-2">
+        <div class="flex items-center space-x-2 shrink-0 whitespace-nowrap">
           <button
             @click="close"
-            class="px-3 py-1.5 rounded-lg border border-border hover:bg-muted text-xs transition"
+            class="px-3 py-1.5 rounded-lg border border-border hover:bg-muted text-xs transition whitespace-nowrap"
           >
             取消
           </button>
           <button
             @click="saveAll"
-            class="px-4 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-xs transition shadow-sm"
+            class="px-4 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-xs transition shadow-sm whitespace-nowrap"
           >
             保存变更
           </button>
