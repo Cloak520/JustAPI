@@ -16,10 +16,22 @@
         <Edit3 class="w-3 h-3 text-muted-foreground/40 group-hover/title:text-primary transition shrink-0 pointer-events-none" />
       </div>
 
-      <!-- 右侧：所属子项目与分组提示 -->
-      <div v-if="activeTab?.subProjectDir" class="flex items-center space-x-1.5 text-[11px] text-muted-foreground font-mono">
-        <Folder class="w-3 h-3 text-muted-foreground/60" />
-        <span>{{ activeTab.subProjectDir }}{{ activeTab.group ? ` / ${activeTab.group}` : '' }}</span>
+      <!-- 右侧：所属子项目与分组选择器 (点击可切换子项目或分组) -->
+      <div class="flex items-center space-x-1 text-xs shrink-0">
+        <button
+          @click="tabStore.showSaveModal = true"
+          class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono transition border"
+          :class="activeTab?.subProjectDir
+            ? 'bg-muted/50 hover:bg-muted text-foreground/90 border-border hover:border-primary/50'
+            : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-dashed border-amber-500/40'"
+          :title="activeTab?.subProjectDir ? '点击更改所属子项目与分组' : '当前请求尚未关联子项目，点击指定'"
+        >
+          <Folder class="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          <span class="max-w-[200px] truncate font-sans font-medium">
+            {{ activeTab?.subProjectDir ? `${subProjectDisplayName}${activeTab.group ? ` / ${activeTab.group}` : ''}` : '未关联子项目 (点击指定)' }}
+          </span>
+          <ChevronDown class="w-3 h-3 opacity-60 shrink-0" />
+        </button>
       </div>
     </div>
 
@@ -136,6 +148,12 @@ const tabStore = useTabStore()
 const projectStore = useProjectStore()
 
 const activeTab = computed(() => tabStore.tabs.find(t => t.id === tabStore.activeTabId))
+
+const subProjectDisplayName = computed(() => {
+  if (!activeTab.value?.subProjectDir) return ''
+  const sub = projectStore.subProjects.find(s => s.dir_name === activeTab.value?.subProjectDir)
+  return sub ? sub.config.name : activeTab.value.subProjectDir
+})
 
 const tabTitle = computed({
   get: () => activeTab.value?.title || '',

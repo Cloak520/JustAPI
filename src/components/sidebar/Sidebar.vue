@@ -596,34 +596,73 @@
     <!-- 弹窗：新建请求 -->
     <div
       v-if="showNewRequestModal"
-      class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in"
     >
       <div class="bg-card border border-border rounded-xl p-5 w-full max-w-sm space-y-4 shadow-xl">
         <h3 class="font-semibold text-sm">新建请求到子项目</h3>
         <div class="space-y-3 text-xs">
+          <!-- 目标子项目选择 -->
           <div>
-            <label class="text-muted-foreground block mb-1">请求名称</label>
+            <label class="text-muted-foreground block mb-1 font-medium">所属子项目模块</label>
+            <select
+              v-model="targetSubDir"
+              class="w-full p-2 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer text-foreground"
+            >
+              <option
+                v-for="sub in projectStore.subProjects"
+                :key="sub.dir_name"
+                :value="sub.dir_name"
+              >
+                {{ sub.config.name }} ({{ sub.dir_name }})
+              </option>
+            </select>
+          </div>
+
+          <!-- 所属分组 (可选) -->
+          <div>
+            <label class="text-muted-foreground block mb-1 font-medium">所属分组 (可选)</label>
+            <div class="flex items-center space-x-1.5">
+              <select
+                v-model="newReqGroupChoice"
+                class="flex-1 p-2 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer text-foreground"
+              >
+                <option value="">(无分组 / 根目录)</option>
+                <option v-for="g in availableGroupsForNewReq" :key="g" :value="g">📁 {{ g }}</option>
+                <option value="__NEW__">+ 新建分组...</option>
+              </select>
+              <input
+                v-if="newReqGroupChoice === '__NEW__'"
+                v-model="newReqCustomGroup"
+                type="text"
+                placeholder="新分组名称"
+                class="flex-1 p-2 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary animate-in fade-in text-foreground"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label class="text-muted-foreground block mb-1 font-medium">请求名称</label>
             <input
               v-model="newReqName"
               type="text"
               placeholder="获取用户资料"
-              class="w-full p-2 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+              class="w-full p-2 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
             />
           </div>
           <div>
-            <label class="text-muted-foreground block mb-1">相对路径</label>
+            <label class="text-muted-foreground block mb-1 font-medium">相对路径</label>
             <input
               v-model="newReqPath"
               type="text"
               placeholder="/users/{id}"
-              class="w-full p-2 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+              class="w-full p-2 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary font-mono text-foreground"
             />
           </div>
           <div>
-            <label class="text-muted-foreground block mb-1">请求方法</label>
+            <label class="text-muted-foreground block mb-1 font-medium">请求方法</label>
             <select
               v-model="newReqMethod"
-              class="w-full p-2 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+              class="w-full p-2 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary font-mono cursor-pointer text-foreground"
             >
               <option value="GET">GET</option>
               <option value="POST">POST</option>
@@ -806,6 +845,21 @@ const targetSubDir = ref('')
 const newReqName = ref('')
 const newReqPath = ref('/api/v1/resource')
 const newReqMethod = ref<HttpMethod>('GET')
+const newReqGroupChoice = ref('')
+const newReqCustomGroup = ref('')
+
+const availableGroupsForNewReq = computed(() => {
+  if (!targetSubDir.value) return []
+  const sub = projectStore.subProjects.find(s => s.dir_name === targetSubDir.value)
+  if (!sub) return []
+  const set = new Set<string>()
+  for (const r of sub.requests) {
+    if (r.group && r.group.trim()) {
+      set.add(r.group.trim())
+    }
+  }
+  return Array.from(set).sort()
+})
 
 // Swagger 导入弹窗状态
 const showSwaggerModal = ref(false)
@@ -899,10 +953,12 @@ function getSubProjectGroups(requests: ApiRequest[]): { groups: RequestGroup[]; 
 }
 
 function openNewRequestModal(dir: string) {
-  targetSubDir.value = dir
+  targetSubDir.value = dir || (projectStore.subProjects[0]?.dir_name || '')
   newReqName.value = '新请求'
   newReqPath.value = '/get'
   newReqMethod.value = 'GET'
+  newReqGroupChoice.value = ''
+  newReqCustomGroup.value = ''
   showNewRequestModal.value = true
 }
 
@@ -978,11 +1034,14 @@ async function confirmCreateSubproject() {
 async function confirmCreateRequest() {
   if (!targetSubDir.value) return
   const reqId = crypto.randomUUID()
-  const fileName = `${newReqName.value.trim().replace(/[^a-zA-Z0-9_\u4e00-\u9fa5-]/g, '_') || 'req'}_${Date.now().toString().slice(-4)}`
+  const reqName = newReqName.value.trim() || '未命名请求'
+  const groupName = newReqGroupChoice.value === '__NEW__' ? newReqCustomGroup.value.trim() : newReqGroupChoice.value.trim()
+  const baseFname = `${reqName.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5-]/g, '_') || 'req'}_${Date.now().toString().slice(-4)}.json`
+  const fileName = groupName ? `${groupName}/${baseFname}` : baseFname
 
   const newReq: ApiRequest = {
     id: reqId,
-    name: newReqName.value.trim() || '未命名请求',
+    name: reqName,
     method: newReqMethod.value,
     path: newReqPath.value.trim() || '/get',
     pathParams: [],
@@ -991,7 +1050,8 @@ async function confirmCreateRequest() {
     bodyType: 'none',
     bodyContent: '',
     subProjectId: targetSubDir.value,
-    fileName: `${fileName}.json`
+    fileName,
+    group: groupName || undefined
   }
 
   await projectStore.saveRequest(targetSubDir.value, fileName, newReq)

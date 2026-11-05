@@ -13,6 +13,7 @@ export const useTabStore = defineStore('tab', () => {
     }
   ])
   const activeTabId = ref<string>('default_tab')
+  const showSaveModal = ref(false)
 
   function newTab() {
     const id = crypto.randomUUID()
@@ -95,6 +96,7 @@ export const useTabStore = defineStore('tab', () => {
   return {
     tabs,
     activeTabId,
+    showSaveModal,
     newTab,
     openTab,
     closeTab,

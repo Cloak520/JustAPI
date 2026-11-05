@@ -156,6 +156,9 @@
     <!-- 网络与 Cookie 设置模态框 -->
     <NetworkSettingsModal v-model="showNetworkModal" />
 
+    <!-- 保存请求与子项目归属模态框 -->
+    <SaveRequestModal v-model="tabStore.showSaveModal" />
+
     <!-- 主工作区：左侧边栏 (项目与子项目树) + 右侧标签页与构建器 -->
     <div class="flex-1 flex overflow-hidden">
       <!-- 1. 左侧边栏 (树形项目与历史记录) -->
@@ -200,6 +203,7 @@ import RequestBuilder from '@/components/request/RequestBuilder.vue'
 import ResponseViewer from '@/components/response/ResponseViewer.vue'
 import EnvironmentModal from '@/components/modals/EnvironmentModal.vue'
 import NetworkSettingsModal from '@/components/modals/NetworkSettingsModal.vue'
+import SaveRequestModal from '@/components/modals/SaveRequestModal.vue'
 import type { ApiRequest } from '@/types'
 
 const store = useRequestStore()
@@ -281,25 +285,29 @@ watch(() => tabStore.activeTabId, () => {
 // 保存当前请求到子项目
 async function saveCurrentRequest() {
   const activeTab = tabStore.tabs.find(t => t.id === tabStore.activeTabId)
+  if (!activeTab) return
 
-  // 如果尚未选择子项目，默认选用第一个子项目或提示创建
-  let targetSubDir = activeTab?.subProjectDir || projectStore.currentSubProjectDir
-  if (!targetSubDir && projectStore.subProjects.length > 0) {
-    targetSubDir = projectStore.subProjects[0].dir_name
-  }
-
-  if (!projectStore.hasProject || !targetSubDir) {
+  if (!projectStore.hasProject || projectStore.subProjects.length === 0) {
     alert('请先在左侧边栏打开或创建一个本地项目及子项目模块，再执行保存！')
     return
   }
 
-  const groupName = activeTab?.group || store.group || undefined
-  const reqName = activeTab?.title || store.path || '未命名请求'
-  const baseFname = `${reqName.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5-]/g, '_')}_${Date.now().toString().slice(-4)}.json`
-  const fileName = activeTab?.fileName || (groupName ? `${groupName}/${baseFname}` : baseFname)
+  // 若尚未指定子项目，弹出「保存请求」弹窗供用户自主选择
+  if (!activeTab.subProjectDir) {
+    tabStore.showSaveModal = true
+    return
+  }
+
+  const targetSubDir = activeTab.subProjectDir
+  const groupName = activeTab.group || store.group || undefined
+  const reqName = activeTab.title || store.path || '未命名请求'
+  const baseFname = activeTab.fileName
+    ? (activeTab.fileName.includes('/') ? activeTab.fileName.split('/').pop()! : activeTab.fileName)
+    : `${reqName.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5-]/g, '_')}_${Date.now().toString().slice(-4)}.json`
+  const fileName = activeTab.fileName || (groupName ? `${groupName}/${baseFname}` : baseFname)
 
   const reqToSave: ApiRequest = {
-    id: activeTab?.requestId || crypto.randomUUID(),
+    id: activeTab.requestId || crypto.randomUUID(),
     name: reqName,
     method: store.method,
     path: store.path,
@@ -314,13 +322,7 @@ async function saveCurrentRequest() {
   }
 
   await projectStore.saveRequest(targetSubDir, fileName, reqToSave)
-  if (activeTab) {
-    activeTab.subProjectDir = targetSubDir
-    activeTab.fileName = fileName
-    activeTab.requestId = reqToSave.id
-    activeTab.group = groupName
-    activeTab.isDirty = false
-  }
+  activeTab.isDirty = false
 }
 
 // 快捷键: Cmd/Ctrl + S 保存
