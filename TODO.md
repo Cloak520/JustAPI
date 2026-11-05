@@ -8,7 +8,7 @@
 ## 📅 里程碑概览
 
 - [x] **Phase 0**: 技术准备与跨平台脚手架（含 Windows 内存裁剪参数配置）
-- [ ] **Phase 1**: 核心 RESTful 请求与响应查看器（MVP：双模式编辑、BaseURL 自动拼接、CodeMirror 6）
+- [x] **Phase 1**: 核心 RESTful 请求与响应查看器（MVP：双模式编辑、BaseURL 自动拼接、CodeMirror 6）
 - [ ] **Phase 2**: 本地自选目录与项目-子项目继承体系（Directory as Project, Cascading BaseURL/Headers/Envs）
 - [ ] **Phase 3**: Swagger / OpenAPI 导入、源 URL 记录与一键无损刷新（Swagger Engine）
 - [ ] **Phase 4**: 环境变量多层级覆盖与动态插值系统（Environment Engine）
@@ -39,50 +39,50 @@
 ---
 
 ### Phase 1: 核心 RESTful 请求构建与响应查看 (MVP)
-- [ ] **RESTful 请求地址与 BaseURL 智能拼接**
-  - [ ] HTTP Method 下拉选择框 (GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS)，配以标准语义化色彩标签
-  - [ ] URL 输入栏：
-    - [ ] 支持输入相对路径（如 `/api/v1/users/{id}`）或独立完整 URL
-    - [ ] 实时显示继承解析后的完整 BaseURL 前缀与最终拼接 URL 预览
-    - [ ] 自动解析 URL 中的 query 参数并同步至 Params 表格与文本模式
-    - [ ] **Path Variables 路径参数智能解析**：自动检测 URL 中的 `{param}` 或 `:param`，在 Params 面板生成对应输入行，发送请求时自动完成路径值替换
-  - [ ] 「Send」发送按钮及快捷键（`Cmd+Enter` / `Ctrl+Enter`）支持
-  - [ ] 请求进行中加载状态 (Loading Spinner) 与实时取消请求 (Cancel) 能力
-- [ ] **Query Params 编辑器（表格 vs 纯文本双模式）**
-  - [ ] **表格模式 (Key-Value Grid)**：支持勾选启用/禁用、Key、Value、Description、行删除与自动追加空行
-  - [ ] **纯文本模式 (Bulk Edit)**：
-    - [ ] 多行文本直接输入/整段粘贴（支持 `key=value` 或 `key: value` 格式）
-    - [ ] 切换回表格模式时自动解析语法并回填表格；表格修改时同步反向生成文本
-- [ ] **Headers 编辑器 & 极简鉴权（表格 vs 纯文本双模式 + 继承标记）**
-  - [ ] 极简鉴权：不设冗余独立 Auth 面板，统一在 Headers 表格/文本中通过继承或局部配置实现 (如 `Authorization: Bearer {{token}}`)
-  - [ ] 继承状态标记（直观标注该 Header 来自「主项目全局继承」、「子项目继承」还是「本请求自定义」）
-  - [ ] **表格模式**：支持常用 HTTP Header 键名智能自动补全 (Content-Type, Authorization, Accept 等)
-  - [ ] **纯文本模式 (Bulk Edit)**：支持多行格式（`Header-Key: Header-Value`）批量编辑与实时双向解析
-- [ ] **Body 编辑器 (RESTful 核心高频类型)**
-  - [ ] `none`: 无 Body
-  - [ ] `json`: 基于 CodeMirror 6 的 JSON 高效编辑器
-    - [ ] **严禁自动格式化**：输入、失焦、粘贴或发送时，绝不自动篡改用户原始排版与内容
-    - [ ] **显式按需格式化**：工具栏提供「格式化 (Prettify)」与「单行压缩 (Minify)」按钮（支持 `Shift+Alt+F`）
-    - [ ] **Rust `serde_json` 异步非阻塞执行**：通过 Tauri IPC 调用 Rust 后台工作线程，毫秒级流式处理大 JSON，前端 UI 零卡顿，不丢失长整型 (Snowflake ID) 精度
-    - [ ] 实时语法错误提示（基于 CodeMirror 6 Linter）
-  - [ ] `form-data`: 键值对表格（支持文本与本地文件上传路径）
-  - [ ] `x-www-form-urlencoded`: 键值对表格
-  - [ ] `raw`: 纯文本格式输入
-- [ ] **原生 HTTP 转发层 (Rust Reqwest 引擎)**
-  - [ ] 编写 Rust 端 `send_rest_request` 命令，自动合并最终 URL 并发送
-  - [ ] 彻底规避浏览器跨域 (CORS) 限制
-  - [ ] 精确统计请求毫秒耗时 (Duration)、传输体积大小 (Body Size) 与 HTTP 状态码 (Status Code)
-  - [ ] 异常与网络超时捕获处理（DNS 失败、拒绝连接、超时等友好提示）
-- [ ] **响应查看器 (Response Viewer)**
-  - [ ] 响应状态栏：HTTP Status Code（根据 2xx/3xx/4xx/5xx 着色）、耗时、数据大小
-  - [ ] **Response Body 查看与超大保护**：
-    - [ ] CodeMirror 6 JSON 语法高亮与代码折叠/展开
-    - [ ] 关键字查找/搜索定位 (Search)
-    - [ ] 纯文本 (Raw) / 格式化 (Pretty) 视图切换（大数据异步走 `serde_json`，防止前端卡死）
-    - [ ] **超大响应保护机制 (Large Response Protection)**：当返回数据 > 5MB 时自动截断预览（仅渲染前 1MB 文本），避免 DOM/编辑器假死，并提示「另存为本地文件」或「在外部编辑器打开」
-    - [ ] 一键复制响应内容到剪贴板
-    - [ ] 响应数据另存为本地文件
-  - [ ] **Response Headers 查看**：只读表格展示服务端实际返回的响应头
+- [x] **RESTful 请求地址与 BaseURL 智能拼接**
+  - [x] HTTP Method 下拉选择框 (GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS)，配以标准语义化色彩标签
+  - [x] URL 输入栏：
+    - [x] 支持输入相对路径（如 `/api/v1/users/{id}`）或独立完整 URL
+    - [x] 实时显示继承解析后的完整 BaseURL 前缀与最终拼接 URL 预览
+    - [x] 自动解析 URL 中的 query 参数并同步至 Params 表格与文本模式
+    - [x] **Path Variables 路径参数智能解析**：自动检测 URL 中的 `{param}` 或 `:param`，在 Params 面板生成对应输入行，发送请求时自动完成路径值替换
+  - [x] 「Send」发送按钮及快捷键（`Cmd+Enter` / `Ctrl+Enter`）支持
+  - [x] 请求进行中加载状态 (Loading Spinner) 与实时取消请求 (Cancel) 能力
+- [x] **Query Params 编辑器（表格 vs 纯文本双模式）**
+  - [x] **表格模式 (Key-Value Grid)**：支持勾选启用/禁用、Key、Value、Description、行删除与自动追加空行
+  - [x] **纯文本模式 (Bulk Edit)**：
+    - [x] 多行文本直接输入/整段粘贴（支持 `key=value` 或 `key: value` 格式）
+    - [x] 切换回表格模式时自动解析语法并回填表格；表格修改时同步反向生成文本
+- [x] **Headers 编辑器 & 极简鉴权（表格 vs 纯文本双模式 + 继承标记）**
+  - [x] 极简鉴权：不设冗余独立 Auth 面板，统一在 Headers 表格/文本中通过继承或局部配置实现 (如 `Authorization: Bearer {{token}}`)
+  - [x] 继承状态标记（直观标注该 Header 来自「主项目全局继承」、「子项目继承」还是「本请求自定义」）
+  - [x] **表格模式**：支持常用 HTTP Header 键名智能自动补全 (Content-Type, Authorization, Accept 等)
+  - [x] **纯文本模式 (Bulk Edit)**：支持多行格式（`Header-Key: Header-Value`）批量编辑与实时双向解析
+- [x] **Body 编辑器 (RESTful 核心高频类型)**
+  - [x] `none`: 无 Body
+  - [x] `json`: 基于 CodeMirror 6 的 JSON 高效编辑器
+    - [x] **严禁自动格式化**：输入、失焦、粘贴或发送时，绝不自动篡改用户原始排版与内容
+    - [x] **显式按需格式化**：工具栏提供「格式化 (Prettify)」与「单行压缩 (Minify)」按钮（支持 `Shift+Alt+F`）
+    - [x] **Rust `serde_json` 异步非阻塞执行**：通过 Tauri IPC 调用 Rust 后台工作线程，毫秒级流式处理大 JSON，前端 UI 零卡顿，不丢失长整型 (Snowflake ID) 精度
+    - [x] 实时语法错误提示（基于 CodeMirror 6 Linter）
+  - [x] `form-data`: 键值对表格（支持文本与本地文件上传路径）
+  - [x] `x-www-form-urlencoded`: 键值对表格
+  - [x] `raw`: 纯文本格式输入
+- [x] **原生 HTTP 转发层 (Rust Reqwest 引擎)**
+  - [x] 编写 Rust 端 `send_rest_request` 命令，自动合并最终 URL 并发送
+  - [x] 彻底规避浏览器跨域 (CORS) 限制
+  - [x] 精确统计请求毫秒耗时 (Duration)、传输体积大小 (Body Size) 与 HTTP 状态码 (Status Code)
+  - [x] 异常与网络超时捕获处理（DNS 失败、拒绝连接、超时等友好提示）
+- [x] **响应查看器 (Response Viewer)**
+  - [x] 响应状态栏：HTTP Status Code（根据 2xx/3xx/4xx/5xx 着色）、耗时、数据大小
+  - [x] **Response Body 查看与超大保护**：
+    - [x] CodeMirror 6 JSON 语法高亮与代码折叠/展开
+    - [x] 关键字查找/搜索定位 (Search)
+    - [x] 纯文本 (Raw) / 格式化 (Pretty) 视图切换（大数据异步走 `serde_json`，防止前端卡死）
+    - [x] **超大响应保护机制 (Large Response Protection)**：当返回数据 > 5MB 时自动截断预览（仅渲染前 1MB 文本），避免 DOM/编辑器假死，并提示「另存为本地文件」或「在外部编辑器打开」
+    - [x] 一键复制响应内容到剪贴板
+    - [x] 响应数据另存为本地文件
+  - [x] **Response Headers 查看**：只读表格展示服务端实际返回的响应头
 
 ---
 

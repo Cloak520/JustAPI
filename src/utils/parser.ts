@@ -56,26 +56,17 @@ export function formatPairsToBulkText(pairs: KeyValuePair[], format: 'colon' | '
 }
 
 /**
- * 从相对路径中提取 Path Variables，如 /users/{id}/orders/:orderId
+ * 从相对路径中提取 Path Variables（按在 URL 中出现的自然顺序），如 /users/{id}/orders/:orderId
  */
 export function extractPathVariables(path: string): string[] {
   const vars: string[] = []
-  // 匹配 {var}
-  const braceMatches = path.matchAll(/\{([a-zA-Z0-9_-]+)\}/g)
-  for (const match of braceMatches) {
-    if (match[1] && !vars.includes(match[1])) {
-      vars.push(match[1])
+  const matches = path.matchAll(/\{([a-zA-Z0-9_-]+)\}|:([a-zA-Z0-9_-]+)/g)
+  for (const match of matches) {
+    const varName = match[1] || match[2]
+    if (varName && !vars.includes(varName)) {
+      vars.push(varName)
     }
   }
-
-  // 匹配 :var
-  const colonMatches = path.matchAll(/:([a-zA-Z0-9_-]+)/g)
-  for (const match of colonMatches) {
-    if (match[1] && !vars.includes(match[1])) {
-      vars.push(match[1])
-    }
-  }
-
   return vars
 }
 

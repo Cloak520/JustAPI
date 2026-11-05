@@ -1,8 +1,15 @@
+use crate::http::{execute_request, HttpRequestPayload, HttpResponsePayload};
 use tauri::command;
 
 #[command]
 pub fn ping() -> String {
     "Tauri 2.0 (Rust Core) 在线".to_string()
+}
+
+/// 执行 RESTful 请求
+#[command]
+pub async fn send_rest_request(payload: HttpRequestPayload) -> Result<HttpResponsePayload, String> {
+    execute_request(payload).await
 }
 
 /// 基于 Rust 原生 serde_json 异步执行超高性能 JSON 格式化 (Pretty)
@@ -30,4 +37,3 @@ pub async fn minify_json_fast(raw: String) -> Result<String, String> {
     .await
     .map_err(|e| format!("线程调度错误: {}", e))?
 }
-

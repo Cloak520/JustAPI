@@ -1,137 +1,79 @@
 <template>
-  <div class="flex flex-col h-screen w-screen bg-background text-foreground select-none">
-    <!-- 顶部标题栏 / 窗口控制区 -->
+  <div class="flex flex-col h-screen w-screen bg-background text-foreground select-none overflow-hidden">
+    <!-- 顶部导航栏 / 窗口控制区 (支持 macOS 原生拖拽移动) -->
     <header class="flex items-center justify-between px-4 h-11 border-b border-border bg-card/60 backdrop-blur shrink-0" data-tauri-drag-region>
       <div class="flex items-center space-x-3">
         <!-- macOS 预留交通灯间距或应用 Logo -->
-        <div class="flex items-center space-x-2">
-          <div class="w-6 h-6 rounded-md bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">
+        <div class="flex items-center space-x-2 pl-14 sm:pl-0">
+          <div class="w-6 h-6 rounded-md bg-primary/20 flex items-center justify-center text-primary font-bold text-xs tracking-tighter shadow-sm">
             J
           </div>
           <span class="font-semibold text-sm tracking-wide">JustAPI</span>
-          <span class="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">v0.1.0</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">MVP</span>
         </div>
       </div>
 
-      <!-- 中间项目状态 -->
-      <div class="flex items-center space-x-2 text-xs text-muted-foreground">
-        <FolderOpen class="w-3.5 h-3.5" />
-        <span>{{ currentProjectName || '未选择项目目录' }}</span>
+      <!-- 中间：当前 BaseURL 与环境快速配置 -->
+      <div class="flex items-center space-x-2 text-xs">
+        <span class="text-muted-foreground text-[11px]">BaseURL:</span>
+        <input
+          v-model="store.baseUrl"
+          type="text"
+          placeholder="https://api.example.com"
+          class="font-mono text-xs px-2 py-1 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary w-56 text-foreground truncate"
+        />
       </div>
 
-      <!-- 右侧快捷状态与操作 -->
+      <!-- 右侧：快捷操作与核心指标 -->
       <div class="flex items-center space-x-3 text-xs">
-        <div class="flex items-center space-x-1.5">
-          <span class="inline-block w-2 h-2 rounded-full" :class="backendConnected ? 'bg-emerald-500' : 'bg-amber-500'"></span>
-          <span class="text-muted-foreground text-[11px]">{{ backendStatus }}</span>
-        </div>
+        <button
+          @click="resetExample"
+          class="text-[11px] text-muted-foreground hover:text-foreground transition underline font-mono"
+        >
+          载入示例
+        </button>
       </div>
     </header>
 
-    <!-- 主工作区容器 (Phase 0 验证占位面板) -->
-    <main class="flex-1 flex overflow-hidden">
-      <!-- 侧边栏占位 -->
-      <aside class="w-64 border-r border-border bg-card/30 flex flex-col justify-between p-3">
-        <div class="space-y-3">
-          <div class="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1">
-            项目与子项目 (Phase 2)
-          </div>
-          <div class="p-3 rounded-lg border border-dashed border-border text-center text-xs text-muted-foreground">
-            选择本地目录以载入 RESTful 集合
-          </div>
+    <!-- 主工作区：上下分屏设计 (上部 Request Builder，下部 Response Viewer) -->
+    <main class="flex-1 flex flex-col p-4 space-y-4 overflow-hidden">
+      <!-- 1. 请求构建区域 (URL 栏 + 参数/头/Body 标签页) -->
+      <section class="flex flex-col space-y-3 shrink-0 max-h-[50%] min-h-[260px] p-3 rounded-xl border border-border bg-card/40 backdrop-blur shadow-sm">
+        <UrlBar />
+        <div class="flex-1 overflow-hidden min-h-0">
+          <RequestBuilder />
         </div>
+      </section>
 
-        <div class="text-[11px] text-muted-foreground px-1 space-y-1">
-          <div>Tauri 2.0 + Vue 3 + Vite</div>
-          <div>CodeMirror 6 + serde_json</div>
-        </div>
-      </aside>
-
-      <!-- 核心工作台 -->
-      <section class="flex-1 flex flex-col p-6 overflow-y-auto space-y-6">
-        <div>
-          <h2 class="text-lg font-semibold tracking-tight">Phase 0 脚手架与原生连接验证</h2>
-          <p class="text-xs text-muted-foreground mt-1">
-            验证 Tauri 2.0 IPC 通信、Rust 原生 <code class="text-primary font-mono">serde_json</code> 异步格式化与 Windows 裁剪配置。
-          </p>
-        </div>
-
-        <!-- Rust 后端 IPC 与 serde_json 快速验证卡片 -->
-        <div class="p-5 rounded-xl border border-border bg-card/50 space-y-4 max-w-2xl">
-          <div class="flex items-center justify-between">
-            <span class="text-sm font-medium">Rust 原生 serde_json 异步格式化测试</span>
-            <button
-              @click="testRustFormat"
-              :disabled="loading"
-              class="px-3 py-1.5 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition disabled:opacity-50"
-            >
-              {{ loading ? '处理中...' : '测试 Rust 格式化' }}
-            </button>
-          </div>
-
-          <div class="space-y-2">
-            <label class="text-xs text-muted-foreground">输入未格式化的紧凑 JSON：</label>
-            <textarea
-              v-model="rawJsonInput"
-              rows="3"
-              class="w-full font-mono text-xs p-2.5 rounded-md bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary"
-            ></textarea>
-          </div>
-
-          <div v-if="formattedResult" class="space-y-1.5">
-            <div class="flex items-center justify-between">
-              <span class="text-xs text-muted-foreground">Rust 处理耗时：<span class="text-emerald-400 font-mono">{{ costMs }} ms</span></span>
-            </div>
-            <pre class="font-mono text-xs p-3 rounded-md bg-background border border-border overflow-x-auto text-emerald-400 max-h-48">{{ formattedResult }}</pre>
-          </div>
-        </div>
+      <!-- 2. 响应展示区域 -->
+      <section class="flex-1 flex flex-col p-3 rounded-xl border border-border bg-card/40 backdrop-blur shadow-sm overflow-hidden min-h-0">
+        <ResponseViewer />
       </section>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { FolderOpen } from 'lucide-vue-next'
-import { invoke } from '@tauri-apps/api/core'
+import { useRequestStore } from '@/stores/requestStore'
+import UrlBar from '@/components/request/UrlBar.vue'
+import RequestBuilder from '@/components/request/RequestBuilder.vue'
+import ResponseViewer from '@/components/response/ResponseViewer.vue'
 
-const currentProjectName = ref('')
-const backendConnected = ref(false)
-const backendStatus = ref('连接中...')
-const loading = ref(false)
-const costMs = ref(0)
+const store = useRequestStore()
 
-const rawJsonInput = ref('{"name":"JustAPI","type":"RESTful","features":["lightweight","no-login","local-first"],"stats":{"stars":9999,"active":true}}')
-const formattedResult = ref('')
-
-async function checkBackend() {
-  try {
-    const res = await invoke<string>('ping')
-    backendConnected.value = true
-    backendStatus.value = res || 'Tauri 2.0 就绪'
-  } catch (err) {
-    // 处于纯 Web 调试模式时的优雅降级
-    backendConnected.value = false
-    backendStatus.value = 'Web 预览模式 (未挂载 Tauri)'
-  }
+function resetExample() {
+  store.method = 'GET'
+  store.baseUrl = 'https://httpbin.org'
+  store.path = '/get'
+  store.queryParams = [
+    { id: '1', key: 'product', value: 'JustAPI', enabled: true, description: 'Client name' },
+    { id: '2', key: 'mode', value: 'lightweight', enabled: true, description: 'Engine mode' }
+  ]
+  store.headers = [
+    { id: 'h1', key: 'User-Agent', value: 'JustAPI/0.1.0', enabled: true },
+    { id: 'h2', key: 'Accept', value: 'application/json', enabled: true }
+  ]
+  store.bodyType = 'none'
+  store.send()
 }
-
-async function testRustFormat() {
-  loading.value = true
-  const start = performance.now()
-  try {
-    const res = await invoke<string>('format_json_fast', { raw: rawJsonInput.value })
-    formattedResult.value = res
-    costMs.value = Math.round((performance.now() - start) * 100) / 100
-  } catch (err: any) {
-    formattedResult.value = `错误: ${err?.message || err}`
-  } finally {
-    loading.value = false
-  }
-}
-
-onMounted(() => {
-  checkBackend()
-})
 </script>
-
