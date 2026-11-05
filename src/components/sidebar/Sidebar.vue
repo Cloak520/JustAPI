@@ -57,6 +57,14 @@
           >
             <FolderPlus class="w-4 h-4 text-emerald-400" />
           </button>
+          <button
+            v-if="projectStore.hasProject"
+            @click="showProjectSettingsModal = true"
+            class="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition"
+            title="主项目全局配置 (BaseURL、名称等)"
+          >
+            <FolderCog class="w-4 h-4 text-primary/80" />
+          </button>
         </div>
       </div>
 
@@ -428,6 +436,7 @@
           <div class="text-[11px] text-muted-foreground/80 leading-relaxed bg-primary/5 border border-primary/10 p-2.5 rounded-lg space-y-1">
             <div class="font-medium text-primary">💡 智能导入与无损合并规则：</div>
             <div>• <b>自动分类分组</b>：按 Swagger Tags 归类到目录分组中，支持在左侧折叠查看</div>
+            <div>• <b>自动同步 BaseURL</b>：若文档包含服务地址，自动更新至主目录 project.json</div>
             <div>• <b>已有接口</b>：无损保留此前填写的具体测试参数值与自定义 Header</div>
             <div>• <b>新增接口</b>：自动按分组添加到该子项目</div>
             <div>• <b>已删除接口</b>：标记为 <code class="text-amber-400 font-mono">[已下线]</code>，坚决不删本地文件</div>
@@ -570,6 +579,12 @@
       v-model="showSubSettingsModal"
       :dir-name="targetSubDirForSettings"
     />
+
+    <!-- 主项目全局配置模态框 (BaseURL、项目名称) -->
+    <ProjectSettingsModal
+      v-model="showProjectSettingsModal"
+      @saved="showToast('主项目配置已保存至 project.json')"
+    />
   </aside>
 </template>
 
@@ -577,13 +592,14 @@
 import { ref } from 'vue'
 import {
   FolderTree, History, FolderOpen, FolderPlus, Plus, Trash2, ChevronRight, FolderCode,
-  FileDown, RefreshCw, CheckCircle2, AlertCircle, Loader2, Settings2, Folder
+  FileDown, RefreshCw, CheckCircle2, AlertCircle, Loader2, Settings2, Folder, FolderCog
 } from 'lucide-vue-next'
 import { onKeyStroke } from '@vueuse/core'
 import { useProjectStore } from '@/stores/projectStore'
 import { useTabStore } from '@/stores/tabStore'
 import { useRequestStore } from '@/stores/requestStore'
 import SubProjectSettingsModal from '@/components/modals/SubProjectSettingsModal.vue'
+import ProjectSettingsModal from '@/components/modals/ProjectSettingsModal.vue'
 import type { HttpMethod, HistoryItem, ApiRequest } from '@/types'
 
 const projectStore = useProjectStore()
@@ -592,6 +608,7 @@ const requestStore = useRequestStore()
 
 const sidebarView = ref<'collections' | 'history'>('collections')
 const openSubprojects = ref<Set<string>>(new Set())
+const showProjectSettingsModal = ref(false)
 
 // 新建子项目弹窗状态
 const showNewSubprojectModal = ref(false)
@@ -726,7 +743,7 @@ async function confirmImportSwagger() {
       targetDir = cleanDir
     }
 
-    const stats = await projectStore.importSwagger(targetDir, swaggerSourceUrl.value.trim())
+    const stats = await projectStore.importSwagger(targetDir, swaggerSourceUrl.value.trim(), true)
     if (stats) {
       openSubprojects.value.add(targetDir)
       showSwaggerModal.value = false

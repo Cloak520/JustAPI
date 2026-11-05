@@ -519,6 +519,14 @@ mod tests {
         assert_eq!(user_req.file_name, Some("用户管理/get_user.json".to_string()));
         assert_eq!(loaded.history.len(), 1);
 
+        // 6. 测试更新主目录 BaseURL 并持久化至 .justapi/project.json
+        let mut proj_config = loaded.config.clone();
+        proj_config.base_url = "https://api.myproject.com".to_string();
+        save_project_config(&path_str, proj_config).unwrap();
+
+        let reloaded = load_project_from_dir(&path_str).unwrap();
+        assert_eq!(reloaded.config.base_url, "https://api.myproject.com");
+
         // 清理临时测试目录
         let _ = fs::remove_dir_all(temp_dir);
     }

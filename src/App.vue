@@ -24,13 +24,23 @@
       <!-- 中间：当前 BaseURL 与级联继承显示 -->
       <div class="flex items-center space-x-2 text-xs">
         <span class="text-muted-foreground text-[11px] font-mono">BaseURL:</span>
-        <div class="relative flex items-center">
+        <div class="relative flex items-center group">
           <input
             v-model="store.baseUrl"
+            @change="handleBaseUrlChange"
+            @blur="handleBaseUrlChange"
+            @keydown.enter="handleBaseUrlChange"
             type="text"
             placeholder="https://api.example.com"
-            class="font-mono text-xs px-2 py-0.5 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary w-64 text-foreground truncate"
+            class="font-mono text-xs px-2 py-0.5 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary w-64 text-foreground truncate transition"
+            :title="projectStore.hasProject ? '主目录 BaseURL (回车或失焦自动保存到 project.json)' : 'BaseURL'"
           />
+          <span
+            v-if="baseUrlSavedHint"
+            class="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] text-emerald-400 bg-card border border-emerald-500/30 px-1.5 py-0.2 rounded shadow whitespace-nowrap animate-in fade-in z-50 pointer-events-none"
+          >
+            已保存至 project.json
+          </span>
         </div>
       </div>
 
@@ -241,11 +251,30 @@ function openEnvModal() {
   showEnvModal.value = true
 }
 
+const baseUrlSavedHint = ref(false)
+let baseUrlHintTimer: ReturnType<typeof setTimeout> | null = null
+
+async function handleBaseUrlChange() {
+  if (projectStore.hasProject && projectStore.projectConfig) {
+    const val = store.baseUrl.trim()
+    if (projectStore.projectConfig.baseUrl !== val) {
+      await projectStore.updateBaseUrl(val)
+      baseUrlSavedHint.value = true
+      if (baseUrlHintTimer) clearTimeout(baseUrlHintTimer)
+      baseUrlHintTimer = setTimeout(() => {
+        baseUrlSavedHint.value = false
+      }, 2000)
+    }
+  }
+}
+
 // 当激活的 Tab 变更时，如果该 Tab 关联子项目，自动计算级联继承的有效 BaseURL 和 Headers
 watch(() => tabStore.activeTabId, () => {
   const activeTab = tabStore.tabs.find(t => t.id === tabStore.activeTabId)
   if (activeTab?.subProjectDir) {
     store.baseUrl = projectStore.resolveEffectiveBaseUrl(activeTab.subProjectDir)
+  } else if (projectStore.projectConfig?.baseUrl) {
+    store.baseUrl = projectStore.projectConfig.baseUrl
   }
 })
 

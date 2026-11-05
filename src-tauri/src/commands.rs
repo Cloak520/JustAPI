@@ -121,6 +121,7 @@ pub async fn import_swagger_to_subproject(
     project_path: String,
     dir_name: String,
     source: String,
+    sync_project_base_url: Option<bool>,
 ) -> Result<MergeStats, String> {
     // 1. 获取并解析 Swagger
     let parsed = swagger::fetch_and_parse_swagger(&source).await?;
@@ -146,11 +147,24 @@ pub async fn import_swagger_to_subproject(
     let mut updated_config = sub.config.clone();
     updated_config.swagger_source_url = Some(source.clone());
     if updated_config.base_url.is_empty() {
-        if let Some(b) = parsed.base_url {
-            updated_config.base_url = b;
+        if let Some(ref b) = parsed.base_url {
+            updated_config.base_url = b.clone();
         }
     }
     storage::save_subproject_config(&project_path, &dir_name, updated_config)?;
+
+    // 6. 自动将 Swagger 解析出的 baseUrl 更新到主项目根目录的 .justapi/project.json 中
+    if let Some(ref b) = parsed.base_url {
+        let clean_base = b.trim();
+        if !clean_base.is_empty() {
+            let should_sync = sync_project_base_url.unwrap_or(true);
+            let mut proj_config = project.config.clone();
+            if should_sync || proj_config.base_url.is_empty() || proj_config.base_url == "https://httpbin.org" {
+                proj_config.base_url = clean_base.to_string();
+                storage::save_project_config(&project_path, proj_config)?;
+            }
+        }
+    }
 
     Ok(merged.stats)
 }
@@ -175,7 +189,7 @@ pub async fn refresh_swagger_subproject(
         .ok_or_else(|| "该子项目未绑定 Swagger Source URL，请先执行导入".to_string())?
         .clone();
 
-    import_swagger_to_subproject(project_path, dir_name, source).await
+    import_swagger_to_subproject(project_path, dir_name, source, Some(false)).await
 }
 
 /// 基于 Rust 原生 serde_json 异步执行超高性能 JSON 格式化 (Pretty)

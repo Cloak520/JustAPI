@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useStorage } from '@vueuse/core'
 import type { FullProjectData, ProjectConfig, SubProjectData, SubProjectConfig, ApiRequest, HistoryItem, KeyValuePair, Environment } from '@/types'
 import { resolveEffectiveVariableMap, interpolate as interpolateText } from '@/utils/interpolation'
+import { useRequestStore } from './requestStore'
 
 export interface RecentProject {
   path: string
@@ -46,6 +47,12 @@ export const useProjectStore = defineStore('project', () => {
 
       if (data.sub_projects.length > 0 && !currentSubProjectDir.value) {
         currentSubProjectDir.value = data.sub_projects[0].dir_name
+      }
+
+      // 同步主项目根 baseUrl 至当前请求 store
+      if (data.config.baseUrl) {
+        const reqStore = useRequestStore()
+        reqStore.baseUrl = data.config.baseUrl
       }
 
       // 更新最近项目列表
@@ -140,6 +147,17 @@ export const useProjectStore = defineStore('project', () => {
       path: projectPath.value,
       config: projectConfig.value
     })
+  }
+
+  // 5.1 自动保存并同步主项目根 BaseURL 到 project.json
+  async function updateBaseUrl(newBaseUrl: string) {
+    if (!projectPath.value || !projectConfig.value) return
+    const cleanUrl = newBaseUrl.trim()
+    projectConfig.value.baseUrl = cleanUrl
+    await saveProjectConfig()
+
+    const reqStore = useRequestStore()
+    reqStore.baseUrl = cleanUrl
   }
 
   // 6. 创建子项目
@@ -245,15 +263,16 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
-  // 11. 导入 Swagger 并无损合并
-  async function importSwagger(subProjectDir: string, sourceUrl: string) {
+  // 11. 导入 Swagger 并无损合并 (支持自动更新主项目 BaseURL 到 project.json)
+  async function importSwagger(subProjectDir: string, sourceUrl: string, syncProjectBaseUrl: boolean = true) {
     if (!projectPath.value) return null
     const stats = await invoke<{ added: number; updated: number; deprecated: number; total: number }>(
       'import_swagger_to_subproject',
       {
         projectPath: projectPath.value,
         dirName: subProjectDir,
-        source: sourceUrl.trim()
+        source: sourceUrl.trim(),
+        syncProjectBaseUrl
       }
     )
     await loadProject(projectPath.value)
@@ -365,6 +384,7 @@ export const useProjectStore = defineStore('project', () => {
     resolveEffectiveBaseUrl,
     resolveEffectiveHeaders,
     saveProjectConfig,
+    updateBaseUrl,
     createSubProject,
     deleteSubProject,
     updateSubProjectConfig,
