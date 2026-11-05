@@ -119,21 +119,21 @@
 ---
 
 ### Phase 3: Swagger / OpenAPI 导入、源 URL 记录与一键无损刷新
-- [ ] **Swagger / OpenAPI 解析引擎**
-  - [ ] 支持 Swagger 2.0、OpenAPI 3.0 与 3.1 格式（支持 JSON 与 YAML）
-  - [ ] 支持从远程 HTTP/HTTPS URL 直接拉取导入 (如 `http://localhost:8080/v3/api-docs`)
-  - [ ] 支持从本地 Swagger 文件导入
-  - [ ] 智能解析：提取 BaseURL、Path、Method、Summary/Description、Query/Path/Header/Body 参数模板
-- [ ] **导入来源持久化记录**
-  - [ ] 导入时提示选择或自动创建目标子项目
-  - [ ] 将源 URL 持久化记录在 `.justapi/project.json` 或子项目 `.subproject.json` 的 `swaggerSourceUrl` 字段中
-- [ ] **一键无损刷新 API (Refresh API Engine)**
-  - [ ] 在项目或子项目菜单提供「一键刷新接口」按钮
-  - [ ] 重新根据记录的 URL 请求最新 Swagger 规范文档
-  - [ ] **智能差异对比与合并 (Smart Merge)**：
-    - [ ] 新增接口：自动添加到子项目目录
-    - [ ] 废弃接口：打上 `[Deprecated / 已下线]` 标签，**坚决不物理删除本地文件**，保护用户测试参数
-    - [ ] 已变更接口：更新 Path 与参数定义，**无损保留**用户已在 JustAPI 中填写的具体测试参数 Value 与自定义 Header
+- [x] **Swagger / OpenAPI 解析引擎**
+  - [x] 支持 Swagger 2.0、OpenAPI 3.0 与 3.1 格式（支持 JSON 与 YAML）
+  - [x] 支持从远程 HTTP/HTTPS URL 直接拉取导入 (如 `http://localhost:8080/v3/api-docs`)
+  - [x] 支持从本地 Swagger 文件导入
+  - [x] 智能解析：提取 BaseURL、Path、Method、Summary/Description、Query/Path/Header/Body 参数模板
+- [x] **导入来源持久化记录**
+  - [x] 导入时提示选择或自动创建目标子项目
+  - [x] 将源 URL 持久化记录在 `.justapi/project.json` 或子项目 `.subproject.json` 的 `swaggerSourceUrl` 字段中
+- [x] **一键无损刷新 API (Refresh API Engine)**
+  - [x] 在项目或子项目菜单提供「一键刷新接口」按钮
+  - [x] 重新根据记录的 URL 请求最新 Swagger 规范文档
+  - [x] **智能差异对比与合并 (Smart Merge)**：
+    - [x] 新增接口：自动添加到子项目目录
+    - [x] 废弃接口：打上 `[Deprecated / 已下线]` 标签，**坚决不物理删除本地文件**，保护用户测试参数
+    - [x] 已变更接口：更新 Path 与参数定义，**无损保留**用户已在 JustAPI 中填写的具体测试参数 Value 与自定义 Header
 
 ---
 

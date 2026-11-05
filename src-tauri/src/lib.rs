@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod http;
 pub mod storage;
+pub mod swagger;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -19,6 +20,8 @@ pub fn run() {
             commands::delete_request_file,
             commands::record_history,
             commands::clear_history,
+            commands::import_swagger_to_subproject,
+            commands::refresh_swagger_subproject,
             commands::format_json_fast,
             commands::minify_json_fast,
         ])

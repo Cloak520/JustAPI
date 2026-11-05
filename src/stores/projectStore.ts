@@ -244,6 +244,35 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
+  // 11. 导入 Swagger 并无损合并
+  async function importSwagger(subProjectDir: string, sourceUrl: string) {
+    if (!projectPath.value) return null
+    const stats = await invoke<{ added: number; updated: number; deprecated: number; total: number }>(
+      'import_swagger_to_subproject',
+      {
+        projectPath: projectPath.value,
+        dirName: subProjectDir,
+        source: sourceUrl.trim()
+      }
+    )
+    await loadProject(projectPath.value)
+    return stats
+  }
+
+  // 12. 一键无损刷新子项目的 Swagger API
+  async function refreshSwagger(subProjectDir: string) {
+    if (!projectPath.value) return null
+    const stats = await invoke<{ added: number; updated: number; deprecated: number; total: number }>(
+      'refresh_swagger_subproject',
+      {
+        projectPath: projectPath.value,
+        dirName: subProjectDir
+      }
+    )
+    await loadProject(projectPath.value)
+    return stats
+  }
+
   return {
     projectPath,
     projectConfig,
@@ -262,6 +291,8 @@ export const useProjectStore = defineStore('project', () => {
     saveRequest,
     deleteRequest,
     recordHistory,
-    clearHistory
+    clearHistory,
+    importSwagger,
+    refreshSwagger
   }
 })

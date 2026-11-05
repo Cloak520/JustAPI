@@ -1,5 +1,5 @@
 <template>
-  <aside class="flex flex-col h-full bg-card/30 border-r border-border select-none text-xs">
+  <aside class="flex flex-col h-full bg-card/30 border-r border-border select-none text-xs relative">
     <!-- 侧边栏模式切换 (Collections / History) -->
     <div class="flex items-center border-b border-border p-1 bg-muted/20 shrink-0">
       <button
@@ -40,6 +40,14 @@
             title="打开本地项目目录"
           >
             <FolderOpen class="w-4 h-4 text-primary" />
+          </button>
+          <button
+            v-if="projectStore.hasProject"
+            @click="openImportSwaggerModal"
+            class="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition"
+            title="导入 Swagger / OpenAPI 接口文档"
+          >
+            <FileDown class="w-4 h-4 text-amber-400" />
           </button>
           <button
             v-if="projectStore.hasProject"
@@ -93,8 +101,14 @@
 
       <!-- 已打开项目：子项目与请求树 -->
       <div v-else class="flex-1 overflow-y-auto p-2 space-y-2">
-        <div v-if="projectStore.subProjects.length === 0" class="p-4 text-center text-muted-foreground text-xs">
-          暂无子项目，点击右上角「+」创建第一个模块
+        <div v-if="projectStore.subProjects.length === 0" class="p-4 text-center text-muted-foreground text-xs space-y-2">
+          <div>暂无子项目模块</div>
+          <button
+            @click="openImportSwaggerModal"
+            class="text-xs text-primary underline font-medium"
+          >
+            从 Swagger 导入接口
+          </button>
         </div>
 
         <div
@@ -116,18 +130,36 @@
               <span class="text-[10px] text-muted-foreground font-mono">({{ sub.requests.length }})</span>
             </div>
 
-            <!-- 子项目操作 (新增请求、删除) -->
-            <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition" @click.stop>
+            <!-- 子项目操作 (Swagger 刷新、新增请求、删除) -->
+            <div class="flex items-center space-x-1" @click.stop>
+              <!-- Swagger 标志与一键无损刷新按钮 -->
+              <div v-if="sub.config.swaggerSourceUrl" class="flex items-center space-x-1">
+                <span class="text-[9px] px-1 py-0.2 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono">
+                  Swagger
+                </span>
+                <button
+                  @click="triggerRefreshSwagger(sub.dir_name)"
+                  :disabled="refreshingDir === sub.dir_name"
+                  class="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition"
+                  :title="`一键无损刷新 (${sub.config.swaggerSourceUrl})`"
+                >
+                  <RefreshCw
+                    class="w-3 h-3 text-amber-400"
+                    :class="refreshingDir === sub.dir_name ? 'animate-spin' : ''"
+                  />
+                </button>
+              </div>
+
               <button
                 @click="openNewRequestModal(sub.dir_name)"
-                class="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                class="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition"
                 title="在子项目下新建请求"
               >
                 <Plus class="w-3.5 h-3.5" />
               </button>
               <button
                 @click="deleteSubProject(sub.dir_name)"
-                class="p-1 rounded hover:bg-muted text-muted-foreground hover:text-destructive"
+                class="p-1 rounded hover:bg-muted text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition"
                 title="删除子项目"
               >
                 <Trash2 class="w-3.5 h-3.5" />
@@ -147,7 +179,11 @@
                 <span class="font-mono font-bold text-[10px]" :class="getMethodColor(req.method)">
                   {{ req.method }}
                 </span>
-                <span class="truncate text-[11px] text-foreground/90 font-medium" :title="req.name || req.path">
+                <span
+                  class="truncate text-[11px] font-medium"
+                  :class="req.name.includes('[已下线]') ? 'text-muted-foreground line-through opacity-70' : 'text-foreground/90'"
+                  :title="req.name || req.path"
+                >
                   {{ req.name || req.path }}
                 </span>
               </div>
@@ -206,6 +242,105 @@
 
         <div v-if="projectStore.history.length === 0" class="py-6 text-center text-xs text-muted-foreground/60">
           暂无请求历史
+        </div>
+      </div>
+    </div>
+
+    <!-- 操作结果通知 Toast -->
+    <div
+      v-if="toastMessage"
+      class="absolute bottom-3 left-3 right-3 p-2.5 rounded-lg bg-card border border-border shadow-lg flex items-center space-x-2 text-xs z-50 animate-in fade-in slide-in-from-bottom-2"
+    >
+      <CheckCircle2 v-if="!toastIsError" class="w-4 h-4 text-emerald-400 shrink-0" />
+      <AlertCircle v-else class="w-4 h-4 text-destructive shrink-0" />
+      <span class="text-foreground leading-tight">{{ toastMessage }}</span>
+    </div>
+
+    <!-- 弹窗：导入 Swagger / OpenAPI -->
+    <div
+      v-if="showSwaggerModal"
+      class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    >
+      <div class="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-4 shadow-xl">
+        <div class="flex items-center justify-between">
+          <h3 class="font-semibold text-sm">导入 Swagger / OpenAPI 文档</h3>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">v2.0 / v3.0 / v3.1</span>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <div>
+            <label class="text-muted-foreground block mb-1">文档来源 URL 或本地文件路径</label>
+            <input
+              v-model="swaggerSourceUrl"
+              type="text"
+              placeholder="http://localhost:8080/v3/api-docs 或 https://petstore.swagger.io/v2/swagger.json"
+              class="w-full p-2 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary font-mono text-[11px]"
+            />
+          </div>
+
+          <div>
+            <label class="text-muted-foreground block mb-1">导入至子项目模块</label>
+            <div class="flex items-center space-x-2">
+              <select
+                v-model="swaggerTargetSubDir"
+                class="flex-1 p-2 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="__NEW__">+ 创建新子项目模块</option>
+                <option
+                  v-for="sub in projectStore.subProjects"
+                  :key="sub.dir_name"
+                  :value="sub.dir_name"
+                >
+                  {{ sub.config.name }} ({{ sub.dir_name }})
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div v-if="swaggerTargetSubDir === '__NEW__'" class="space-y-2 p-2.5 rounded-lg bg-muted/20 border border-border">
+            <div>
+              <label class="text-muted-foreground block mb-1 text-[11px]">新建模块名称</label>
+              <input
+                v-model="swaggerNewSubName"
+                type="text"
+                placeholder="用户中心 API"
+                class="w-full p-1.5 rounded bg-background border border-border text-xs"
+              />
+            </div>
+            <div>
+              <label class="text-muted-foreground block mb-1 text-[11px]">文件夹名 (英文)</label>
+              <input
+                v-model="swaggerNewSubDir"
+                type="text"
+                placeholder="user_api"
+                class="w-full p-1.5 rounded bg-background border border-border text-xs font-mono"
+              />
+            </div>
+          </div>
+
+          <div class="text-[11px] text-muted-foreground/80 leading-relaxed bg-primary/5 border border-primary/10 p-2.5 rounded-lg space-y-1">
+            <div class="font-medium text-primary">💡 智能无损合并规则 (Smart Merge)：</div>
+            <div>• 已有接口：无损保留此前填写的具体测试参数值与自定义 Header</div>
+            <div>• 新增接口：自动添加到该子项目</div>
+            <div>• 后端已删除接口：标记为 <code class="text-amber-400 font-mono">[已下线]</code>，坚决不删本地文件</div>
+          </div>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-2">
+          <button
+            @click="showSwaggerModal = false"
+            class="px-3 py-1.5 rounded text-xs text-muted-foreground hover:bg-muted"
+          >
+            取消
+          </button>
+          <button
+            @click="confirmImportSwagger"
+            :disabled="importingSwagger || !swaggerSourceUrl.trim()"
+            class="px-4 py-1.5 rounded text-xs bg-primary text-primary-foreground font-medium hover:bg-primary/90 flex items-center space-x-1.5 disabled:opacity-50"
+          >
+            <Loader2 v-if="importingSwagger" class="w-3.5 h-3.5 animate-spin" />
+            <span>{{ importingSwagger ? '拉取解析中...' : '开始导入' }}</span>
+          </button>
         </div>
       </div>
     </div>
@@ -326,7 +461,11 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { FolderTree, History, FolderOpen, FolderPlus, Plus, Trash2, ChevronRight, FolderCode } from 'lucide-vue-next'
+import {
+  FolderTree, History, FolderOpen, FolderPlus, Plus, Trash2, ChevronRight, FolderCode,
+  FileDown, RefreshCw, CheckCircle2, AlertCircle, Loader2
+} from 'lucide-vue-next'
+import { onKeyStroke } from '@vueuse/core'
 import { useProjectStore } from '@/stores/projectStore'
 import { useTabStore } from '@/stores/tabStore'
 import { useRequestStore } from '@/stores/requestStore'
@@ -352,6 +491,27 @@ const newReqName = ref('')
 const newReqPath = ref('/api/v1/resource')
 const newReqMethod = ref<HttpMethod>('GET')
 
+// Swagger 导入弹窗状态
+const showSwaggerModal = ref(false)
+const swaggerSourceUrl = ref('')
+const swaggerTargetSubDir = ref('__NEW__')
+const swaggerNewSubName = ref('Swagger API')
+const swaggerNewSubDir = ref('swagger_api')
+const importingSwagger = ref(false)
+const refreshingDir = ref<string | null>(null)
+
+// Toast 状态
+const toastMessage = ref('')
+const toastIsError = ref(false)
+
+function showToast(msg: string, isError = false) {
+  toastMessage.value = msg
+  toastIsError.value = isError
+  setTimeout(() => {
+    toastMessage.value = ''
+  }, 4000)
+}
+
 function isSubOpen(dir: string) {
   return openSubprojects.value.has(dir)
 }
@@ -371,6 +531,65 @@ function openNewRequestModal(dir: string) {
   newReqMethod.value = 'GET'
   showNewRequestModal.value = true
 }
+
+function openImportSwaggerModal() {
+  if (projectStore.subProjects.length > 0) {
+    swaggerTargetSubDir.value = projectStore.currentSubProjectDir || projectStore.subProjects[0].dir_name
+  } else {
+    swaggerTargetSubDir.value = '__NEW__'
+  }
+  showSwaggerModal.value = true
+}
+
+async function confirmImportSwagger() {
+  if (!swaggerSourceUrl.value.trim()) return
+  importingSwagger.value = true
+
+  try {
+    let targetDir = swaggerTargetSubDir.value
+    if (targetDir === '__NEW__') {
+      const cleanDir = swaggerNewSubDir.value.trim().replace(/[^a-zA-Z0-9_-]/g, '_') || 'swagger_api'
+      await projectStore.createSubProject(swaggerNewSubName.value.trim() || 'Swagger 接口', cleanDir)
+      targetDir = cleanDir
+    }
+
+    const stats = await projectStore.importSwagger(targetDir, swaggerSourceUrl.value.trim())
+    if (stats) {
+      openSubprojects.value.add(targetDir)
+      showSwaggerModal.value = false
+      showToast(`Swagger 导入成功：新增 ${stats.added} 个，更新 ${stats.updated} 个，共 ${stats.total} 个接口`)
+    }
+  } catch (err: any) {
+    showToast(`导入失败: ${err?.message || err}`, true)
+  } finally {
+    importingSwagger.value = false
+  }
+}
+
+async function triggerRefreshSwagger(subDir: string) {
+  refreshingDir.value = subDir
+  try {
+    const stats = await projectStore.refreshSwagger(subDir)
+    if (stats) {
+      showToast(`接口刷新完成：更新 ${stats.updated} 个，新增 ${stats.added} 个，已下线 ${stats.deprecated} 个`)
+    }
+  } catch (err: any) {
+    showToast(`刷新失败: ${err?.message || err}`, true)
+  } finally {
+    refreshingDir.value = null
+  }
+}
+
+// 全局快捷键: Cmd/Ctrl + R 刷新当前子项目的 Swagger
+onKeyStroke('r', (e) => {
+  if (e.metaKey || e.ctrlKey) {
+    e.preventDefault()
+    const target = projectStore.currentSubProjectDir || projectStore.subProjects[0]?.dir_name
+    if (target) {
+      triggerRefreshSwagger(target)
+    }
+  }
+})
 
 async function confirmCreateSubproject() {
   if (!newSubDir.value.trim()) return
@@ -435,4 +654,3 @@ function getMethodColor(method: HttpMethod) {
   }
 }
 </script>
-

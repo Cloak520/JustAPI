@@ -2,6 +2,7 @@ use crate::http::{execute_request, HttpRequestPayload, HttpResponsePayload};
 use crate::storage::{
     self, FullProjectData, HistoryItem, ProjectMetadata, SavedRequest, SubProjectMetadata,
 };
+use crate::swagger::{self, MergeStats};
 use tauri::command;
 
 #[command]
@@ -112,6 +113,69 @@ pub async fn clear_history(project_path: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || storage::clear_history(&project_path))
         .await
         .map_err(|e| format!("调度错误: {}", e))?
+}
+
+/// 导入 Swagger/OpenAPI 并无损合并至指定子项目
+#[command]
+pub async fn import_swagger_to_subproject(
+    project_path: String,
+    dir_name: String,
+    source: String,
+) -> Result<MergeStats, String> {
+    // 1. 获取并解析 Swagger
+    let parsed = swagger::fetch_and_parse_swagger(&source).await?;
+
+    // 2. 读取该子项目现有的所有接口
+    let project = storage::load_project_from_dir(&project_path)?;
+    let sub = project
+        .sub_projects
+        .iter()
+        .find(|s| s.dir_name == dir_name)
+        .ok_or_else(|| format!("未找到子项目目录: {}", dir_name))?;
+
+    // 3. 执行 Smart Merge
+    let merged = swagger::smart_merge(&sub.requests, parsed.requests);
+
+    // 4. 将合并后的请求写回磁盘
+    for req in &merged.requests {
+        let fname = req.file_name.clone().unwrap_or_else(|| format!("{}.json", req.id));
+        storage::save_request_file(&project_path, &dir_name, &fname, req.clone())?;
+    }
+
+    // 5. 更新子项目的 swagger_source_url 与 base_url (若原为空)
+    let mut updated_config = sub.config.clone();
+    updated_config.swagger_source_url = Some(source.clone());
+    if updated_config.base_url.is_empty() {
+        if let Some(b) = parsed.base_url {
+            updated_config.base_url = b;
+        }
+    }
+    storage::save_subproject_config(&project_path, &dir_name, updated_config)?;
+
+    Ok(merged.stats)
+}
+
+/// 一键无损刷新子项目的 Swagger API
+#[command]
+pub async fn refresh_swagger_subproject(
+    project_path: String,
+    dir_name: String,
+) -> Result<MergeStats, String> {
+    let project = storage::load_project_from_dir(&project_path)?;
+    let sub = project
+        .sub_projects
+        .iter()
+        .find(|s| s.dir_name == dir_name)
+        .ok_or_else(|| format!("未找到子项目目录: {}", dir_name))?;
+
+    let source = sub
+        .config
+        .swagger_source_url
+        .as_ref()
+        .ok_or_else(|| "该子项目未绑定 Swagger Source URL，请先执行导入".to_string())?
+        .clone();
+
+    import_swagger_to_subproject(project_path, dir_name, source).await
 }
 
 /// 基于 Rust 原生 serde_json 异步执行超高性能 JSON 格式化 (Pretty)

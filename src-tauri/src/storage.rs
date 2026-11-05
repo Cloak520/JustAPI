@@ -12,6 +12,7 @@ fn default_body_type() -> String {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct KeyValueItem {
     pub id: String,
     pub key: String,
@@ -19,52 +20,56 @@ pub struct KeyValueItem {
     pub enabled: bool,
     #[serde(default)]
     pub description: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "inherited_from")]
     pub inherited_from: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct SavedRequest {
     pub id: String,
     pub name: String,
     pub method: String,
     pub path: String,
-    #[serde(default)]
+    #[serde(default, alias = "path_params")]
     pub path_params: Vec<KeyValueItem>,
-    #[serde(default)]
+    #[serde(default, alias = "query_params")]
     pub query_params: Vec<KeyValueItem>,
     #[serde(default)]
     pub headers: Vec<KeyValueItem>,
-    #[serde(default = "default_body_type")]
+    #[serde(default = "default_body_type", alias = "body_type")]
     pub body_type: String,
-    #[serde(default)]
+    #[serde(default, alias = "body_content")]
     pub body_content: String,
-    #[serde(default)]
+    #[serde(default, alias = "sub_project_id")]
     pub sub_project_id: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "file_name")]
     pub file_name: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct SubProjectMetadata {
     pub id: String,
     pub name: String,
+    #[serde(alias = "base_url")]
     pub base_url: String,
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", alias = "inherit_base_url")]
     pub inherit_base_url: bool,
     #[serde(default)]
     pub headers: Vec<KeyValueItem>,
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", alias = "inherit_headers")]
     pub inherit_headers: bool,
     #[serde(default)]
     pub variables: HashMap<String, String>,
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", alias = "inherit_variables")]
     pub inherit_variables: bool,
-    #[serde(default)]
+    #[serde(default, alias = "swagger_source_url")]
     pub swagger_source_url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct EnvironmentItem {
     pub id: String,
     pub name: String,
@@ -72,27 +77,32 @@ pub struct EnvironmentItem {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct ProjectMetadata {
     pub name: String,
+    #[serde(alias = "base_url")]
     pub base_url: String,
     #[serde(default)]
     pub headers: Vec<KeyValueItem>,
     #[serde(default)]
     pub environments: Vec<EnvironmentItem>,
-    #[serde(default)]
+    #[serde(default, alias = "active_environment_id")]
     pub active_environment_id: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "swagger_source_url")]
     pub swagger_source_url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct HistoryItem {
     pub id: String,
+    #[serde(alias = "request_id")]
     pub request_id: Option<String>,
     pub name: String,
     pub method: String,
     pub url: String,
     pub status: u16,
+    #[serde(alias = "duration_ms")]
     pub duration_ms: u64,
     pub timestamp: u64,
 }
