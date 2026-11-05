@@ -773,14 +773,22 @@ const sidebarView = ref<'collections' | 'history'>('collections')
 const openSubprojects = ref<Set<string>>(new Set())
 const showProjectSettingsModal = ref(false)
 
-// 默认保持所有子项目展开状态
+// 仅在首次载入项目时默认展开子项目，后续完整保留用户的折叠/展开操作
+const hasInitializedSubs = ref(false)
+watch(
+  () => projectStore.projectPath,
+  () => {
+    hasInitializedSubs.value = false
+  }
+)
 watch(
   () => projectStore.subProjects,
   (subs) => {
-    if (subs && subs.length > 0) {
+    if (!hasInitializedSubs.value && subs && subs.length > 0) {
       for (const sub of subs) {
         openSubprojects.value.add(sub.dir_name)
       }
+      hasInitializedSubs.value = true
     }
   },
   { immediate: true }
@@ -1004,9 +1012,8 @@ function expandAllTree() {
 }
 
 function collapseAllTree() {
-  // 折叠时，子项目不折叠：所有子项目保持展开，将子项目内部的各个接口分组/目录全部折叠
+  // 折叠全部：仅折叠子项目内部的分组目录；不修改子项目本身的折叠状态（折叠的保持折叠，展开的保持展开）
   for (const sub of projectStore.subProjects) {
-    openSubprojects.value.add(sub.dir_name)
     const { groups, ungrouped } = getSubProjectGroups(sub.requests)
     for (const grp of groups) {
       collapsedGroups.value.add(`${sub.dir_name}:${grp.name}`)
