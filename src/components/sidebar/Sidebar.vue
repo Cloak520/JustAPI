@@ -927,7 +927,7 @@ async function confirmImportSwagger() {
       targetDir = cleanDir
     }
 
-    const stats = await projectStore.importSwagger(targetDir, swaggerSourceUrl.value.trim(), true)
+    const stats = await projectStore.importSwagger(targetDir, swaggerSourceUrl.value.trim())
     if (stats) {
       openSubprojects.value.add(targetDir)
       showSwaggerModal.value = false

@@ -121,7 +121,7 @@ pub async fn import_swagger_to_subproject(
     project_path: String,
     dir_name: String,
     source: String,
-    sync_project_base_url: Option<bool>,
+    _sync_project_base_url: Option<bool>,
 ) -> Result<MergeStats, String> {
     // 1. 获取并解析 Swagger
     let parsed = swagger::fetch_and_parse_swagger(&source).await?;
@@ -143,7 +143,7 @@ pub async fn import_swagger_to_subproject(
         storage::save_request_file(&project_path, &dir_name, &fname, req.clone())?;
     }
 
-    // 5. 更新子项目的 swagger_source_url 与 base_url (若原为空)
+    // 5. 更新子项目的 swagger_source_url 与 base_url (若子项目原 base_url 为空)
     let mut updated_config = sub.config.clone();
     updated_config.swagger_source_url = Some(source.clone());
     if updated_config.base_url.is_empty() {
@@ -153,18 +153,7 @@ pub async fn import_swagger_to_subproject(
     }
     storage::save_subproject_config(&project_path, &dir_name, updated_config)?;
 
-    // 6. 自动将 Swagger 解析出的 baseUrl 更新到主项目根目录的 .justapi/project.json 中
-    if let Some(ref b) = parsed.base_url {
-        let clean_base = b.trim();
-        if !clean_base.is_empty() {
-            let should_sync = sync_project_base_url.unwrap_or(true);
-            let mut proj_config = project.config.clone();
-            if should_sync || proj_config.base_url.is_empty() || proj_config.base_url == "https://httpbin.org" {
-                proj_config.base_url = clean_base.to_string();
-                storage::save_project_config(&project_path, proj_config)?;
-            }
-        }
-    }
+    // 注：导入 Swagger 时无需修改主项目根目录 project.json 的 BaseURL，保持主项目 BaseURL 独立稳定
 
     Ok(merged.stats)
 }

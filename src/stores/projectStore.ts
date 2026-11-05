@@ -289,16 +289,15 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
-  // 11. 导入 Swagger 并无损合并 (支持自动更新主项目 BaseURL 到 project.json)
-  async function importSwagger(subProjectDir: string, sourceUrl: string, syncProjectBaseUrl: boolean = true) {
+  // 11. 导入 Swagger 并无损合并至子项目
+  async function importSwagger(subProjectDir: string, sourceUrl: string) {
     if (!projectPath.value) return null
     const stats = await invoke<{ added: number; updated: number; deprecated: number; total: number }>(
       'import_swagger_to_subproject',
       {
         projectPath: projectPath.value,
         dirName: subProjectDir,
-        source: sourceUrl.trim(),
-        syncProjectBaseUrl
+        source: sourceUrl.trim()
       }
     )
     await loadProject(projectPath.value)
