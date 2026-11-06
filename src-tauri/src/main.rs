@@ -18,13 +18,16 @@ fn main() {
         ]
         .join(" ");
 
-        if let Ok(existing) = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") {
-            std::env::set_var(
-                "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-                format!("{} {}", existing, low_memory_args),
-            );
-        } else {
-            std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", low_memory_args);
+        // SAFETY: Called at process startup in main before other threads are spawned.
+        unsafe {
+            if let Ok(existing) = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") {
+                std::env::set_var(
+                    "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+                    format!("{} {}", existing, low_memory_args),
+                );
+            } else {
+                std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", low_memory_args);
+            }
         }
     }
 
