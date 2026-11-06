@@ -6,7 +6,6 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
-import { useDark } from '@vueuse/core'
 import { EditorView, lineNumbers, highlightActiveLineGutter, highlightActiveLine, keymap } from '@codemirror/view'
 import { EditorState, Compartment } from '@codemirror/state'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
@@ -14,7 +13,8 @@ import { foldGutter, foldKeymap, syntaxHighlighting, defaultHighlightStyle } fro
 import { json } from '@codemirror/lang-json'
 import { oneDark } from '@codemirror/theme-one-dark'
 
-const isDark = useDark()
+const isDark = ref(typeof document !== 'undefined' ? document.documentElement.classList.contains('dark') : true)
+let classObserver: MutationObserver | null = null
 
 const props = withDefaults(defineProps<{
   modelValue: string
@@ -124,9 +124,22 @@ watch(() => props.language, (lang) => {
 
 onMounted(() => {
   initEditor()
+  if (typeof document !== 'undefined') {
+    classObserver = new MutationObserver(() => {
+      isDark.value = document.documentElement.classList.contains('dark')
+    })
+    classObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    })
+  }
 })
 
 onBeforeUnmount(() => {
+  if (classObserver) {
+    classObserver.disconnect()
+    classObserver = null
+  }
   if (editorView) {
     editorView.destroy()
     editorView = null

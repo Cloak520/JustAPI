@@ -319,15 +319,61 @@ const projectStore = useProjectStore()
 const tabStore = useTabStore()
 
 // 多主题外观管理 (深色 / 浅色 / 跟随系统)
-const colorMode = useColorMode({
-  attribute: 'class',
-  modes: {
-    light: '',
-    dark: 'dark'
-  },
-  storageKey: 'justapi_theme_mode',
-  initialValue: 'dark'
+type ThemeMode = 'dark' | 'light' | 'auto'
+
+const colorMode = ref<ThemeMode>((localStorage.getItem('justapi_theme_mode') as ThemeMode) || 'dark')
+const isSystemDark = ref(typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+
+const isEffectiveDark = computed(() => {
+  if (colorMode.value === 'dark') return true
+  if (colorMode.value === 'light') return false
+  return isSystemDark.value
 })
+
+function applyTheme(mode: ThemeMode) {
+  colorMode.value = mode
+  localStorage.setItem('justapi_theme_mode', mode)
+
+  const isDark = mode === 'dark' || (mode === 'auto' && isSystemDark.value)
+  if (isDark) {
+    document.documentElement.classList.add('dark')
+    document.documentElement.style.colorScheme = 'dark'
+  } else {
+    document.documentElement.classList.remove('dark')
+    document.documentElement.style.colorScheme = 'light'
+  }
+
+  // 同步更新 Windows / macOS 窗口原生主题模式 (Windows DWM 沉浸式深浅色边框与标题栏)
+  try {
+    const win = getCurrentWindow()
+    if (win && typeof win.setTheme === 'function') {
+      win.setTheme(mode === 'auto' ? null : (isDark ? 'dark' : 'light'))
+    }
+  } catch {
+    // ignore
+  }
+}
+
+// 监听系统深浅色偏好变动 (当用户选择跟随系统时实时生效)
+if (typeof window !== 'undefined' && window.matchMedia) {
+  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+  const updateSystemDark = (e: MediaQueryListEvent | MediaQueryList) => {
+    isSystemDark.value = e.matches
+    if (colorMode.value === 'auto') {
+      applyTheme('auto')
+    }
+  }
+  if (mediaQuery.addEventListener) {
+    mediaQuery.addEventListener('change', updateSystemDark)
+  } else if ((mediaQuery as any).addListener) {
+    (mediaQuery as any).addListener(updateSystemDark)
+  }
+}
+
+onMounted(() => {
+  applyTheme(colorMode.value)
+})
+
 const themeDropdownRef = ref<HTMLElement | null>(null)
 const showThemeDropdown = ref(false)
 
@@ -335,15 +381,15 @@ onClickOutside(themeDropdownRef, () => {
   showThemeDropdown.value = false
 })
 
-function selectTheme(mode: 'dark' | 'light' | 'auto') {
-  colorMode.value = mode
+function selectTheme(mode: ThemeMode) {
+  applyTheme(mode)
   showThemeDropdown.value = false
 }
 
 const themeTitle = computed(() => {
   if (colorMode.value === 'dark') return '当前主题: 深色模式'
   if (colorMode.value === 'light') return '当前主题: 浅色模式'
-  return '当前主题: 跟随系统'
+  return `当前主题: 跟随系统 (${isEffectiveDark.value ? '深色' : '浅色'})`
 })
 
 const isMac = ref(typeof navigator !== 'undefined' && /macintosh|mac os x/i.test(navigator.userAgent))

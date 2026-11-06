@@ -46,23 +46,39 @@
     </div>
 
     <div class="flex items-center space-x-2">
-      <!-- Method 选择框 -->
-      <div class="relative shrink-0">
-        <select
-          v-model="store.method"
+      <!-- Method 自定义选择框 (彻底消除 Windows 原生 select 白底渲染问题) -->
+      <div ref="methodDropdownRef" class="relative shrink-0">
+        <button
+          type="button"
+          @click="showMethodDropdown = !showMethodDropdown"
           :class="methodColorClass"
-          class="font-mono font-bold text-xs px-3 py-2 rounded-lg border border-border appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary pr-7 transition"
-          @change="handleMethodChange"
+          class="font-mono font-bold text-xs px-3 py-2 rounded-lg border border-border flex items-center space-x-1.5 transition cursor-pointer select-none focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
+          title="点击切换 HTTP 请求方式"
         >
-          <option value="GET">GET</option>
-          <option value="POST">POST</option>
-          <option value="PUT">PUT</option>
-          <option value="DELETE">DELETE</option>
-          <option value="PATCH">PATCH</option>
-          <option value="HEAD">HEAD</option>
-          <option value="OPTIONS">OPTIONS</option>
-        </select>
-        <ChevronDown class="w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground" />
+          <span>{{ store.method }}</span>
+          <ChevronDown
+            class="w-3.5 h-3.5 opacity-70 transition-transform duration-150"
+            :class="showMethodDropdown ? 'rotate-180' : ''"
+          />
+        </button>
+
+        <!-- Method 浮层菜单 -->
+        <div
+          v-if="showMethodDropdown"
+          class="absolute left-0 top-full mt-1.5 w-32 rounded-xl border border-border bg-card p-1 shadow-2xl z-50 text-xs font-mono font-semibold animate-in fade-in zoom-in-95 duration-100"
+          @click.stop
+        >
+          <div
+            v-for="m in HTTP_METHODS"
+            :key="m.value"
+            @click="selectMethod(m.value)"
+            class="flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition hover:bg-muted"
+            :class="store.method === m.value ? 'bg-primary/10 font-bold' : ''"
+          >
+            <span :class="m.color">{{ m.value }}</span>
+            <Check v-if="store.method === m.value" class="w-3.5 h-3.5 text-primary" />
+          </div>
+        </div>
       </div>
 
       <!-- URL 输入框群组 (BaseURL 拼接展示 + Path 输入) -->
@@ -186,15 +202,39 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { onClickOutside } from '@vueuse/core'
 import { ChevronDown, Send, Globe, Folder, Edit3, Copy, Check, Square } from 'lucide-vue-next'
 import { useRequestStore } from '@/stores/requestStore'
 import { useTabStore } from '@/stores/tabStore'
 import { useProjectStore } from '@/stores/projectStore'
-import type { ApiRequest } from '@/types'
+import type { ApiRequest, HttpMethod } from '@/types'
 
 const store = useRequestStore()
 const tabStore = useTabStore()
 const projectStore = useProjectStore()
+
+const showMethodDropdown = ref(false)
+const methodDropdownRef = ref<HTMLElement | null>(null)
+
+onClickOutside(methodDropdownRef, () => {
+  showMethodDropdown.value = false
+})
+
+const HTTP_METHODS: Array<{ value: HttpMethod; color: string }> = [
+  { value: 'GET', color: 'text-emerald-400' },
+  { value: 'POST', color: 'text-amber-400' },
+  { value: 'PUT', color: 'text-blue-400' },
+  { value: 'DELETE', color: 'text-rose-400' },
+  { value: 'PATCH', color: 'text-purple-400' },
+  { value: 'HEAD', color: 'text-teal-400' },
+  { value: 'OPTIONS', color: 'text-indigo-400' }
+]
+
+async function selectMethod(m: HttpMethod) {
+  store.method = m
+  showMethodDropdown.value = false
+  await handleMethodChange()
+}
 
 const activeTab = computed(() => tabStore.tabs.find(t => t.id === tabStore.activeTabId))
 
