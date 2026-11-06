@@ -1,0 +1,111 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '发布版本标签 (Tag，留空默认使用 tauri.conf.json 中的 v__VERSION__)'
+        required: false
+        default: 'v__VERSION__'
+        type: string
+      release_name:
+        description: 'Release 标题 (留空默认使用 JustAPI v__VERSION__)'
+        required: false
+        default: 'JustAPI v__VERSION__'
+        type: string
+      release_notes:
+        description: 'Release 更新说明 (Markdown 格式)'
+        required: false
+        default: |
+          🚀 **JustAPI 桌面客户端新版本发布！**
+
+          请根据您的操作系统在下方 **Assets** 中下载对应安装包：
+          - **macOS (Apple Silicon M1/M2/M3/M4)**: `.dmg` (aarch64)
+          - **macOS (Intel)**: `.dmg` (x86_64)
+          - **Windows**: `.msi` / `setup.exe` (x64)
+          - **Linux**: `.AppImage` / `.deb` (x64)
+        type: string
+      draft:
+        description: '是否发布为草稿 (Draft Release，可在发布前手动在 Releases 页面预览检查)'
+        required: false
+        default: false
+        type: boolean
+      prerelease:
+        description: '是否标记为预发布版本 (Pre-release)'
+        required: false
+        default: false
+        type: boolean
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish-release:
+    name: Build (${{ matrix.platform }} - ${{ matrix.arch }})
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            arch: 'Apple Silicon'
+            args: '--target aarch64-apple-darwin'
+          - platform: 'macos-latest'
+            arch: 'Intel'
+            args: '--target x86_64-apple-darwin'
+          - platform: 'windows-latest'
+            arch: 'x64'
+            args: ''
+          - platform: 'ubuntu-22.04'
+            arch: 'x64'
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            xdg-utils
+
+      - name: Install frontend dependencies
+        run: npm ci || npm install
+
+      - name: Build and Publish Tauri App
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ inputs.tag || github.ref_name }}
+          releaseName: ${{ inputs.release_name || format('JustAPI {0}', github.ref_name) }}
+          releaseBody: ${{ inputs.release_notes || 'JustAPI Release' }}
+          releaseDraft: ${{ inputs.draft || false }}
+          prerelease: ${{ inputs.prerelease || false }}
+          args: ${{ matrix.args }}
+

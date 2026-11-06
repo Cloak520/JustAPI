@@ -207,3 +207,19 @@ npm run tauri build
 - **macOS**：`.dmg` 镜像安装包与 `.app` 单体应用程序（体积约 12MB~18MB）
 - **Windows**：`.msi` 与 `.exe` (NSIS) 安装程序（已固化 WebView2 内存裁剪启动参数）
 
+### 自动化构建发布 (GitHub Actions)
+项目已内置全套自动化构建工作流 [`.github/workflows/release.yml`](.github/workflows/release.yml)：
+1. **手动触发发布 (workflow_dispatch)**：
+   - 进入 GitHub 仓库页面 -> **Actions** -> 选择 **Release** 工作流。
+   - 点击 **Run workflow**：
+     - **Tag / Release 标题**：留空默认自动使用 `tauri.conf.json` 中的版本号生成（如 `v0.1.0`）。
+     - **Draft 选项**：可选是否先发布为草稿，方便在发布前在 GitHub 页面二次核对构建产物。
+2. **Git Tag 自动发布**：
+   - 推送版本标签（如 `git tag v0.1.0 && git push origin v0.1.0`）会自动触发多平台构建并发布对应 Release。
+3. **构建产物覆盖**：
+   - **macOS (Apple Silicon)**：`.dmg` (arm64)
+   - **macOS (Intel)**：`.dmg` (x86_64)
+   - **Windows**：`.msi` 与 `.exe` (x64)
+   - **Linux**：`.AppImage` 与 `.deb` (x64)
+
+
