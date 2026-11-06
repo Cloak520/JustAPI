@@ -134,62 +134,6 @@
           <span>保存</span>
         </button>
 
-        <!-- 主题切换下拉按钮 (深色 / 浅色 / 跟随系统) -->
-        <div ref="themeDropdownRef" class="relative">
-          <button
-            @click="showThemeDropdown = !showThemeDropdown"
-            class="flex items-center justify-center w-7 h-7 rounded bg-muted/80 hover:bg-muted text-foreground transition border border-border/60"
-            :title="themeTitle"
-          >
-            <Moon v-if="colorMode === 'dark'" class="w-3.5 h-3.5 text-primary" />
-            <Sun v-else-if="colorMode === 'light'" class="w-3.5 h-3.5 text-amber-500" />
-            <Laptop v-else class="w-3.5 h-3.5 text-emerald-500" />
-          </button>
-
-          <!-- 主题切换下拉选项面板 -->
-          <div
-            v-if="showThemeDropdown"
-            class="absolute right-0 top-full mt-1.5 w-36 rounded-xl border border-border bg-card p-1 shadow-2xl z-50 text-xs animate-in fade-in zoom-in-95"
-            @click.stop
-          >
-            <div
-              @click="selectTheme('dark')"
-              class="flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer hover:bg-muted transition text-xs"
-              :class="colorMode === 'dark' ? 'bg-primary/10 text-primary font-medium' : 'text-foreground'"
-            >
-              <div class="flex items-center space-x-2">
-                <Moon class="w-3.5 h-3.5 text-primary" />
-                <span>深色模式</span>
-              </div>
-              <Check v-if="colorMode === 'dark'" class="w-3.5 h-3.5 text-primary" />
-            </div>
-
-            <div
-              @click="selectTheme('light')"
-              class="flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer hover:bg-muted transition text-xs"
-              :class="colorMode === 'light' ? 'bg-primary/10 text-primary font-medium' : 'text-foreground'"
-            >
-              <div class="flex items-center space-x-2">
-                <Sun class="w-3.5 h-3.5 text-amber-500" />
-                <span>浅色模式</span>
-              </div>
-              <Check v-if="colorMode === 'light'" class="w-3.5 h-3.5 text-primary" />
-            </div>
-
-            <div
-              @click="selectTheme('auto')"
-              class="flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer hover:bg-muted transition text-xs"
-              :class="colorMode === 'auto' ? 'bg-primary/10 text-primary font-medium' : 'text-foreground'"
-            >
-              <div class="flex items-center space-x-2">
-                <Laptop class="w-3.5 h-3.5 text-emerald-500" />
-                <span>跟随系统</span>
-              </div>
-              <Check v-if="colorMode === 'auto'" class="w-3.5 h-3.5 text-primary" />
-            </div>
-          </div>
-        </div>
-
         <!-- Windows / Linux 原生无边框窗口控制按钮 -->
         <div v-if="!isMac" class="flex items-center ml-1 border-l border-border/60 pl-1.5 space-x-0.5">
           <button
@@ -298,9 +242,9 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import {
   PanelLeft, Save, Globe, ChevronDown, Check, Settings, SlidersHorizontal,
-  Minus, Maximize2, Minimize2, X, CheckCircle2, AlertCircle, Sun, Moon, Laptop
+  Minus, Maximize2, Minimize2, X, CheckCircle2, AlertCircle
 } from 'lucide-vue-next'
-import { onKeyStroke, onClickOutside, useColorMode } from '@vueuse/core'
+import { onKeyStroke, onClickOutside } from '@vueuse/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useRequestStore } from '@/stores/requestStore'
 import { useProjectStore } from '@/stores/projectStore'
@@ -319,75 +263,6 @@ const store = useRequestStore()
 const projectStore = useProjectStore()
 const tabStore = useTabStore()
 
-// 多主题外观管理 (深色 / 浅色 / 跟随系统)
-type ThemeMode = 'dark' | 'light' | 'auto'
-
-const colorMode = ref<ThemeMode>((localStorage.getItem('justapi_theme_mode') as ThemeMode) || 'dark')
-const isSystemDark = ref(typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-
-const isEffectiveDark = computed(() => {
-  if (colorMode.value === 'dark') return true
-  if (colorMode.value === 'light') return false
-  return isSystemDark.value
-})
-
-function applyTheme(mode: ThemeMode) {
-  colorMode.value = mode
-  localStorage.setItem('justapi_theme_mode', mode)
-
-  const isDark = mode === 'dark' || (mode === 'auto' && isSystemDark.value)
-  if (isDark) {
-    document.documentElement.classList.add('dark')
-    document.documentElement.style.colorScheme = 'dark'
-  } else {
-    document.documentElement.classList.remove('dark')
-    document.documentElement.style.colorScheme = 'light'
-  }
-
-  // 同步更新 Windows / macOS 窗口原生主题 (需要 core:window:allow-set-theme 权限)
-  getCurrentWindow().setTheme(mode === 'auto' ? null : (isDark ? 'dark' : 'light')).catch(() => {
-    // ignore (permissions not granted or not supported on this platform)
-  })
-}
-
-// 监听系统深浅色偏好变动 (当用户选择跟随系统时实时生效)
-if (typeof window !== 'undefined' && window.matchMedia) {
-  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-  const updateSystemDark = (e: MediaQueryListEvent | MediaQueryList) => {
-    isSystemDark.value = e.matches
-    if (colorMode.value === 'auto') {
-      applyTheme('auto')
-    }
-  }
-  if (mediaQuery.addEventListener) {
-    mediaQuery.addEventListener('change', updateSystemDark)
-  } else if ((mediaQuery as any).addListener) {
-    (mediaQuery as any).addListener(updateSystemDark)
-  }
-}
-
-onMounted(() => {
-  applyTheme(colorMode.value)
-})
-
-const themeDropdownRef = ref<HTMLElement | null>(null)
-const showThemeDropdown = ref(false)
-
-onClickOutside(themeDropdownRef, () => {
-  showThemeDropdown.value = false
-})
-
-function selectTheme(mode: ThemeMode) {
-  applyTheme(mode)
-  showThemeDropdown.value = false
-}
-
-const themeTitle = computed(() => {
-  if (colorMode.value === 'dark') return '当前主题: 深色模式'
-  if (colorMode.value === 'light') return '当前主题: 浅色模式'
-  return `当前主题: 跟随系统 (${isEffectiveDark.value ? '深色' : '浅色'})`
-})
-
 const isMac = ref(typeof navigator !== 'undefined' && /macintosh|mac os x/i.test(navigator.userAgent))
 const isMaximized = ref(false)
 
@@ -396,6 +271,11 @@ const isMaximized = ref(false)
 let unlistenResized: (() => void) | null = null
 
 onMounted(async () => {
+  // 默认始终使用深色模式
+  document.documentElement.classList.add('dark')
+  document.documentElement.style.colorScheme = 'dark'
+  getCurrentWindow().setTheme('dark').catch(() => {})
+
   try {
     isMaximized.value = await getCurrentWindow().isMaximized()
     unlistenResized = await getCurrentWindow().onResized(async () => {
