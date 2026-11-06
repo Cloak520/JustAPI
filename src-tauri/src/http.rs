@@ -1,4 +1,7 @@
-use reqwest::{header::{HeaderMap, HeaderName, HeaderValue}, Method};
+use reqwest::{
+    header::{HeaderMap, HeaderName, HeaderValue, CONTENT_LENGTH, CONTENT_TYPE},
+    Method,
+};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use std::sync::Mutex;
@@ -91,6 +94,41 @@ pub fn parse_set_cookie(raw: &str) -> Option<CookieItem> {
     })
 }
 
+/// 针对 HTTP 请求头部和载荷进行规范化与 Content-Length 精准重算：
+/// 1. 彻底解决手动传入或历史残留的 Content-Length 导致的连接超时与请求挂起（标大导致死等）。
+/// 2. 避免中文及多字节 UTF-8 字符数 vs 字节数计算偏差。
+/// 3. 清理 GET/HEAD 请求或 form-data / urlencoded 中冲突的旧 Content-Length。
+pub fn sanitize_headers_and_recalc_content_length(
+    header_map: &mut HeaderMap,
+    method: &Method,
+    body_type: &str,
+    body_len: Option<usize>,
+) {
+    match body_type {
+        "json" | "raw" => {
+            if let Some(len) = body_len {
+                // 强制重算覆盖为精确的 UTF-8 实际二进制字节长度
+                header_map.insert(CONTENT_LENGTH, HeaderValue::from(len as u64));
+            } else {
+                header_map.remove(CONTENT_LENGTH);
+            }
+        }
+        "x-www-form-urlencoded" | "form-data" => {
+            // 表单或多部分主体由 reqwest 底层自动计算序列化边界和长度，清除可能冲突的手动旧值
+            header_map.remove(CONTENT_LENGTH);
+        }
+        _ => {
+            if *method == Method::GET || *method == Method::HEAD {
+                // GET 与 HEAD 请求绝不可携带 Content-Length，避免服务端死等 Body 导致超时
+                header_map.remove(CONTENT_LENGTH);
+            } else if header_map.contains_key(CONTENT_LENGTH) {
+                // 对于 POST/PUT 等空 Body 请求，若存在旧 Content-Length，校准为 0
+                header_map.insert(CONTENT_LENGTH, HeaderValue::from(0u64));
+            }
+        }
+    }
+}
+
 pub async fn execute_request(payload: HttpRequestPayload) -> Result<HttpResponsePayload, String> {
     let mut builder = reqwest::Client::builder()
         .timeout(Duration::from_millis(payload.timeout_ms.unwrap_or(30000)))
@@ -115,7 +153,7 @@ pub async fn execute_request(payload: HttpRequestPayload) -> Result<HttpResponse
     let method = Method::from_str(&payload.method.to_uppercase())
         .map_err(|_| format!("不支持的 HTTP 方法: {}", payload.method))?;
 
-    let mut request_builder = client.request(method, &payload.url);
+    let mut request_builder = client.request(method.clone(), &payload.url);
 
     // 组装 Headers
     let mut header_map = HeaderMap::new();
@@ -124,20 +162,22 @@ pub async fn execute_request(payload: HttpRequestPayload) -> Result<HttpResponse
             header_map.append(h_name, h_val);
         }
     }
-    request_builder = request_builder.headers(header_map);
 
-    // 组装 Body
+    // 组装 Body 并准备用于重算 Content-Length 的字节流
+    let mut body_bytes: Option<Vec<u8>> = None;
     match payload.body_type.as_str() {
         "json" => {
             if let Some(content) = payload.body_content {
-                request_builder = request_builder
-                    .header(reqwest::header::CONTENT_TYPE, "application/json")
-                    .body(content);
+                let bytes = content.into_bytes();
+                if !header_map.contains_key(CONTENT_TYPE) {
+                    header_map.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+                }
+                body_bytes = Some(bytes);
             }
         }
         "raw" => {
             if let Some(content) = payload.body_content {
-                request_builder = request_builder.body(content);
+                body_bytes = Some(content.into_bytes());
             }
         }
         "x-www-form-urlencoded" => {
@@ -174,6 +214,22 @@ pub async fn execute_request(payload: HttpRequestPayload) -> Result<HttpResponse
             }
         }
         _ => {}
+    }
+
+    // 核心重算逻辑：校准/覆盖/清除 Content-Length
+    sanitize_headers_and_recalc_content_length(
+        &mut header_map,
+        &method,
+        &payload.body_type,
+        body_bytes.as_ref().map(|b| b.len()),
+    );
+
+    // 将重算校准后的 Headers 挂载至 RequestBuilder
+    request_builder = request_builder.headers(header_map);
+
+    // 如果是 json 或 raw，将实际二进制字节流挂载至 Body
+    if let Some(bytes) = body_bytes {
+        request_builder = request_builder.body(bytes);
     }
 
     let start_time = Instant::now();
@@ -252,5 +308,63 @@ mod tests {
         assert_eq!(cookie.value, "abc123xyz");
         assert_eq!(cookie.domain, Some("api.example.com".to_string()));
         assert_eq!(cookie.path, Some("/".to_string()));
+    }
+
+    #[test]
+    fn test_recalc_content_length_for_json_with_utf8() {
+        let mut headers = HeaderMap::new();
+        // 模拟用户传入了一个错误的旧值 (例如 99999，会导致服务端死等挂起超时)
+        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("99999"));
+
+        let method = Method::POST;
+        let json_body = r#"{"name":"测试API"}"#; // "测试API" 占 3*2+3 = 9 字节，加上前后 16 字节共 25 字节
+        let expected_bytes_len = json_body.as_bytes().len();
+
+        sanitize_headers_and_recalc_content_length(
+            &mut headers,
+            &method,
+            "json",
+            Some(expected_bytes_len),
+        );
+
+        let cl = headers.get(CONTENT_LENGTH).unwrap().to_str().unwrap();
+        assert_eq!(cl, expected_bytes_len.to_string());
+    }
+
+    #[test]
+    fn test_remove_content_length_on_get_request() {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("50"));
+
+        let method = Method::GET;
+        sanitize_headers_and_recalc_content_length(&mut headers, &method, "none", None);
+
+        assert!(!headers.contains_key(CONTENT_LENGTH));
+    }
+
+    #[test]
+    fn test_remove_content_length_on_multipart_or_form() {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("123"));
+
+        let method = Method::POST;
+        sanitize_headers_and_recalc_content_length(&mut headers, &method, "form-data", None);
+        assert!(!headers.contains_key(CONTENT_LENGTH));
+
+        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("123"));
+        sanitize_headers_and_recalc_content_length(&mut headers, &method, "x-www-form-urlencoded", None);
+        assert!(!headers.contains_key(CONTENT_LENGTH));
+    }
+
+    #[test]
+    fn test_empty_post_recalcs_content_length_to_zero() {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("100"));
+
+        let method = Method::POST;
+        sanitize_headers_and_recalc_content_length(&mut headers, &method, "none", None);
+
+        let cl = headers.get(CONTENT_LENGTH).unwrap().to_str().unwrap();
+        assert_eq!(cl, "0");
     }
 }
