@@ -257,6 +257,8 @@ function getMethodColor(method: string) {
     case 'PUT': return 'text-blue-400'
     case 'DELETE': return 'text-rose-400'
     case 'PATCH': return 'text-purple-400'
+    case 'HEAD': return 'text-teal-400'
+    case 'OPTIONS': return 'text-indigo-400'
     default: return 'text-foreground'
   }
 }

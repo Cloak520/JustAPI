@@ -1,10 +1,11 @@
 use reqwest::{header::{HeaderMap, HeaderName, HeaderValue}, Method};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-const MAX_PREVIEW_BYTES: usize = 1024 * 1024; // 1 MB
-const LARGE_RESPONSE_THRESHOLD: usize = 5 * 1024 * 1024; // 5 MB
+/// 缓存最近一次请求的原始二进制响应流，用于本地文件另存为
+pub static LAST_RESPONSE_BYTES: Mutex<Option<Vec<u8>>> = Mutex::new(None);
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -118,8 +119,8 @@ pub async fn execute_request(payload: HttpRequestPayload) -> Result<HttpResponse
 
     // 组装 Headers
     let mut header_map = HeaderMap::new();
-    for (key, val) in payload.headers {
-        if let (Ok(h_name), Ok(h_val)) = (HeaderName::from_str(&key), HeaderValue::from_str(&val)) {
+    for (key, val) in &payload.headers {
+        if let (Ok(h_name), Ok(h_val)) = (HeaderName::from_str(key), HeaderValue::from_str(val)) {
             header_map.append(h_name, h_val);
         }
     }
@@ -217,13 +218,14 @@ pub async fn execute_request(payload: HttpRequestPayload) -> Result<HttpResponse
         .map_err(|e| format!("读取响应流失败: {}", e))?;
 
     let size_bytes = raw_bytes.len();
-    let is_truncated = size_bytes > LARGE_RESPONSE_THRESHOLD;
+    let is_truncated = false;
 
-    let body = if is_truncated {
-        String::from_utf8_lossy(&raw_bytes[..MAX_PREVIEW_BYTES]).to_string()
-    } else {
-        String::from_utf8_lossy(&raw_bytes).to_string()
-    };
+    // 缓存原始响应字节，供另存为本地文件功能使用（支持超大文件及二进制内容无损写入）
+    if let Ok(mut lock) = LAST_RESPONSE_BYTES.lock() {
+        *lock = Some(raw_bytes.to_vec());
+    }
+
+    let body = String::from_utf8_lossy(&raw_bytes).to_string();
 
     Ok(HttpResponsePayload {
         status,

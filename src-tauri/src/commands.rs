@@ -3,17 +3,82 @@ use crate::storage::{
     self, FullProjectData, HistoryItem, ProjectMetadata, SavedRequest, SubProjectMetadata,
 };
 use crate::swagger::{self, MergeStats};
+use std::collections::HashMap;
+use std::sync::Mutex;
 use tauri::command;
+use tokio::task::AbortHandle;
+
+#[derive(Default)]
+pub struct RequestManager {
+    handles: Mutex<HashMap<String, AbortHandle>>,
+}
 
 #[command]
 pub fn ping() -> String {
     "Tauri 2.0 (Rust Core) 在线".to_string()
 }
 
-/// 执行 RESTful 请求
+/// 执行 RESTful 请求 (接入 Tokio 异步任务与 AbortHandle，支持中途取消)
 #[command]
-pub async fn send_rest_request(payload: HttpRequestPayload) -> Result<HttpResponsePayload, String> {
-    execute_request(payload).await
+pub async fn send_rest_request(
+    request_id: String,
+    payload: HttpRequestPayload,
+    manager: tauri::State<'_, RequestManager>,
+) -> Result<HttpResponsePayload, String> {
+    let task = tokio::spawn(async move {
+        execute_request(payload).await
+    });
+
+    {
+        let mut map = manager.handles.lock().unwrap();
+        map.insert(request_id.clone(), task.abort_handle());
+    }
+
+    let res = task.await;
+
+    {
+        let mut map = manager.handles.lock().unwrap();
+        map.remove(&request_id);
+    }
+
+    match res {
+        Ok(inner_res) => inner_res,
+        Err(join_err) => {
+            if join_err.is_cancelled() {
+                Err("请求已由用户手动取消 (Request Cancelled)".to_string())
+            } else {
+                Err(format!("任务执行异常: {}", join_err))
+            }
+        }
+    }
+}
+
+/// 手动取消正在进行中的 RESTful 请求
+#[command]
+pub fn cancel_rest_request(
+    request_id: String,
+    manager: tauri::State<'_, RequestManager>,
+) -> bool {
+    let mut map = manager.handles.lock().unwrap();
+    if let Some(handle) = map.remove(&request_id) {
+        handle.abort();
+        true
+    } else {
+        false
+    }
+}
+
+/// 原生文件选择对话框，选择上传文件
+#[command]
+pub async fn pick_file() -> Result<Option<String>, String> {
+    tokio::task::spawn_blocking(|| {
+        let file = rfd::FileDialog::new()
+            .set_title("选择上传文件")
+            .pick_file();
+        Ok(file.map(|p| p.to_string_lossy().to_string()))
+    })
+    .await
+    .map_err(|e| format!("文件对话框调度错误: {}", e))?
 }
 
 /// 原生文件选择对话框，选择主项目目录
@@ -115,6 +180,14 @@ pub async fn clear_history(project_path: String) -> Result<(), String> {
         .map_err(|e| format!("调度错误: {}", e))?
 }
 
+/// 删除单条历史记录
+#[command]
+pub async fn delete_history_item(project_path: String, item_id: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || storage::delete_history_item(&project_path, &item_id))
+        .await
+        .map_err(|e| format!("调度错误: {}", e))?
+}
+
 /// 导入 Swagger/OpenAPI 并无损合并至指定子项目
 #[command]
 pub async fn import_swagger_to_subproject(
@@ -205,4 +278,43 @@ pub async fn minify_json_fast(raw: String) -> Result<String, String> {
     })
     .await
     .map_err(|e| format!("线程调度错误: {}", e))?
+}
+
+/// 打开系统原生保存文件对话框，将响应内容另存为本地文件
+#[command]
+pub async fn save_response_to_file(
+    default_filename: String,
+    content: Option<String>,
+    use_raw_bytes: Option<bool>,
+) -> Result<Option<String>, String> {
+    tokio::task::spawn_blocking(move || {
+        let mut dialog = rfd::FileDialog::new().set_title("另存为本地文件");
+
+        let default_name = default_filename.trim();
+        if !default_name.is_empty() {
+            dialog = dialog.set_file_name(default_name);
+        }
+
+        if let Some(path) = dialog.save_file() {
+            let bytes_to_write = if use_raw_bytes.unwrap_or(false) {
+                if let Ok(lock) = crate::http::LAST_RESPONSE_BYTES.lock() {
+                    lock.clone().unwrap_or_else(|| {
+                        content.as_ref().map(|s| s.as_bytes().to_vec()).unwrap_or_default()
+                    })
+                } else {
+                    content.as_ref().map(|s| s.as_bytes().to_vec()).unwrap_or_default()
+                }
+            } else {
+                content.as_ref().map(|s| s.as_bytes().to_vec()).unwrap_or_default()
+            };
+
+            std::fs::write(&path, &bytes_to_write)
+                .map_err(|e| format!("保存文件失败: {}", e))?;
+            Ok(Some(path.to_string_lossy().to_string()))
+        } else {
+            Ok(None)
+        }
+    })
+    .await
+    .map_err(|e| format!("调度错误: {}", e))?
 }

@@ -1,26 +1,31 @@
 <template>
-  <div class="relative w-full h-full flex flex-col border border-border rounded-lg overflow-hidden bg-[#282c34]">
+  <div class="relative w-full h-full flex flex-col border border-border rounded-lg overflow-hidden bg-background dark:bg-[#282c34]">
     <div ref="editorContainer" class="flex-1 w-full h-full text-xs font-mono overflow-auto"></div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { useDark } from '@vueuse/core'
 import { EditorView, lineNumbers, highlightActiveLineGutter, highlightActiveLine, keymap } from '@codemirror/view'
-import { EditorState } from '@codemirror/state'
+import { EditorState, Compartment } from '@codemirror/state'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { foldGutter, foldKeymap, syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language'
 import { json } from '@codemirror/lang-json'
 import { oneDark } from '@codemirror/theme-one-dark'
 
+const isDark = useDark()
+
 const props = withDefaults(defineProps<{
   modelValue: string
   readOnly?: boolean
   language?: 'json' | 'raw'
+  lineWrapping?: boolean
 }>(), {
   modelValue: '',
   readOnly: false,
-  language: 'json'
+  language: 'json',
+  lineWrapping: false
 })
 
 const emit = defineEmits<{
@@ -29,6 +34,10 @@ const emit = defineEmits<{
 
 const editorContainer = ref<HTMLDivElement | null>(null)
 let editorView: EditorView | null = null
+
+const lineWrappingComp = new Compartment()
+const languageComp = new Compartment()
+const themeComp = new Compartment()
 
 function initEditor() {
   if (!editorContainer.value) return
@@ -40,7 +49,9 @@ function initEditor() {
     history(),
     foldGutter(),
     syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-    oneDark,
+    themeComp.of(isDark.value ? oneDark : []),
+    lineWrappingComp.of(props.lineWrapping ? EditorView.lineWrapping : []),
+    languageComp.of(props.language === 'json' ? json() : []),
     keymap.of([
       ...defaultKeymap,
       ...historyKeymap,
@@ -59,10 +70,6 @@ function initEditor() {
       '.cm-line': { padding: '0 8px' }
     })
   ]
-
-  if (props.language === 'json') {
-    extensions.push(json())
-  }
 
   const state = EditorState.create({
     doc: props.modelValue,
@@ -84,6 +91,33 @@ watch(() => props.modelValue, (newVal) => {
         to: editorView.state.doc.length,
         insert: newVal
       }
+    })
+  }
+})
+
+// 监听自动换行配置
+watch(() => props.lineWrapping, (wrap) => {
+  if (editorView) {
+    editorView.dispatch({
+      effects: lineWrappingComp.reconfigure(wrap ? EditorView.lineWrapping : [])
+    })
+  }
+})
+
+// 监听主题模式切换
+watch(isDark, (dark) => {
+  if (editorView) {
+    editorView.dispatch({
+      effects: themeComp.reconfigure(dark ? oneDark : [])
+    })
+  }
+})
+
+// 监听语言模式切换
+watch(() => props.language, (lang) => {
+  if (editorView) {
+    editorView.dispatch({
+      effects: languageComp.reconfigure(lang === 'json' ? json() : [])
     })
   }
 })

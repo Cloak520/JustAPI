@@ -42,7 +42,7 @@
           </button>
         </div>
 
-        <!-- Headers 模式切换 (表格 vs 批量文本) -->
+        <!-- Headers 模式切换 (表格 vs 文本模式) -->
         <div v-if="activeTab === 'headers'" class="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border text-[11px] mb-1">
           <button
             @click="headersMode = 'grid'"
@@ -56,7 +56,7 @@
             :class="headersMode === 'bulk' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
             class="px-2.5 py-0.5 rounded transition font-medium"
           >
-            批量文本
+            文本模式
           </button>
         </div>
       </div>
@@ -116,7 +116,7 @@
             </p>
           </div>
 
-          <!-- 批量文本模式 -->
+          <!-- 文本模式模式 -->
           <div v-if="headersMode === 'bulk'" class="space-y-2">
             <BulkTextEditor
               :items="localHeaders"
@@ -153,18 +153,22 @@
                   class="rounded border-border text-primary focus:ring-0 cursor-pointer"
                   title="启用/禁用此 Header"
                 />
-                <input
-                  v-model="h.key"
-                  type="text"
-                  placeholder="Header 键名 (如 Authorization, X-Token)"
-                  class="w-48 text-xs font-mono px-2.5 py-1.5 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-                <input
-                  v-model="h.value"
-                  type="text"
-                  placeholder="Header 键值 (支持 {{token}})"
-                  class="flex-1 text-xs font-mono px-2.5 py-1.5 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary"
-                />
+                <div class="w-48">
+                  <AutocompleteInput
+                    v-model="h.key"
+                    placeholder="Header 键名 (如 Authorization, X-Token)"
+                    :suggestions="COMMON_HEADER_SUGGESTIONS"
+                    input-class="w-full text-xs font-mono px-2.5 py-1.5 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                <div class="flex-1">
+                  <AutocompleteInput
+                    v-model="h.value"
+                    placeholder="Header 键值 (支持 {{token}})"
+                    :suggestions="getHeaderValueSuggestions(h.key)"
+                    input-class="w-full text-xs font-mono px-2.5 py-1.5 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
                 <input
                   v-model="h.description"
                   type="text"
@@ -222,6 +226,11 @@ import { FolderCog, X, Save, Plus, Trash2, Sliders } from 'lucide-vue-next'
 import { useProjectStore } from '@/stores/projectStore'
 import type { KeyValuePair } from '@/types'
 import BulkTextEditor from '@/components/request/BulkTextEditor.vue'
+import AutocompleteInput from '@/components/common/AutocompleteInput.vue'
+import {
+  COMMON_HEADER_SUGGESTIONS,
+  getHeaderValueSuggestions
+} from '@/utils/headers'
 
 const props = defineProps<{
   modelValue: boolean

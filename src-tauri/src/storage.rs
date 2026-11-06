@@ -133,6 +133,12 @@ pub struct HistoryItem {
     #[serde(alias = "duration_ms")]
     pub duration_ms: u64,
     pub timestamp: u64,
+    #[serde(default, alias = "headers")]
+    pub headers: Option<Vec<(String, String)>>,
+    #[serde(default, alias = "body_type")]
+    pub body_type: Option<String>,
+    #[serde(default, alias = "body_content")]
+    pub body_content: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -449,6 +455,27 @@ pub fn clear_history(project_path: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// 删除单条历史记录
+pub fn delete_history_item(project_path: &str, item_id: &str) -> Result<(), String> {
+    let root = PathBuf::from(project_path);
+    if !root.exists() {
+        return Ok(());
+    }
+
+    let file_path = root.join("history.json");
+    if file_path.exists() {
+        if let Ok(text) = fs::read_to_string(&file_path) {
+            if let Ok(mut list) = serde_json::from_str::<Vec<HistoryItem>>(&text) {
+                list.retain(|h| h.id != item_id);
+                let formatted = serde_json::to_string_pretty(&list)
+                    .map_err(|e| format!("序列化 history.json 失败: {}", e))?;
+                fs::write(file_path, formatted).map_err(|e| format!("写入 history.json 失败: {}", e))?;
+            }
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -533,9 +560,33 @@ mod tests {
             status: 200,
             duration_ms: 55,
             timestamp: 123456789,
+            headers: Some(vec![("Content-Type".to_string(), "application/json".to_string())]),
+            body_type: Some("json".to_string()),
+            body_content: Some("{\"test\": true}".to_string()),
         };
         append_history(&path_str, hist).unwrap();
         assert!(temp_dir.join("history.json").exists());
+
+        // 4.1 测试删除单条历史记录
+        delete_history_item(&path_str, "h1").unwrap();
+        let after_delete = load_project_from_dir(&path_str).unwrap();
+        assert_eq!(after_delete.history.len(), 0);
+
+        // 重新添加一条供后续测试
+        let hist2 = HistoryItem {
+            id: "h2".to_string(),
+            request_id: Some("req_login_1".to_string()),
+            name: "登录接口2".to_string(),
+            method: "POST".to_string(),
+            url: "https://httpbin.org/auth/login".to_string(),
+            status: 200,
+            duration_ms: 55,
+            timestamp: 123456789,
+            headers: None,
+            body_type: None,
+            body_content: None,
+        };
+        append_history(&path_str, hist2).unwrap();
 
         // 5. 重新加载完整项目数据
         let loaded = load_project_from_dir(&path_str).unwrap();

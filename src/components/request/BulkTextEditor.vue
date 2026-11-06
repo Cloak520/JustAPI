@@ -1,8 +1,8 @@
 <template>
-  <div class="flex flex-col space-y-2">
-    <div class="flex items-center justify-between text-xs">
+  <div class="flex flex-col space-y-2 h-full flex-1 min-h-0">
+    <div class="flex items-center justify-between text-xs shrink-0">
       <span class="text-muted-foreground text-[11px]">
-        批量文本模式：每行一个键值对，格式为 <code class="text-primary font-mono">{{ format === 'colon' ? 'Header-Key: Value' : 'key=value' }}</code>
+        文本模式：每行一个键值对，格式为 <code class="text-primary font-mono">{{ format === 'colon' ? 'Header-Key: Value' : 'key=value' }}</code>
       </span>
       <span class="text-muted-foreground/60 text-[10px]">实时双向同步</span>
     </div>
@@ -11,7 +11,7 @@
       v-model="rawText"
       rows="8"
       :placeholder="placeholderText"
-      class="w-full font-mono text-xs p-3 rounded-lg bg-card/60 border border-border focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/40 leading-relaxed resize-y"
+      class="w-full flex-1 min-h-0 font-mono text-xs p-3 rounded-lg bg-card/60 border border-border focus:outline-none focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground/40 leading-relaxed resize-none"
       @input="syncToItems"
     ></textarea>
   </div>

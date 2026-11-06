@@ -119,7 +119,7 @@
                   :class="mode === 'bulk' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
                   class="px-2.5 py-0.5 rounded transition font-medium whitespace-nowrap"
                 >
-                  批量文本
+                  文本模式
                 </button>
               </div>
             </div>
@@ -174,12 +174,12 @@
                   </div>
 
                   <div v-if="variableRows.length === 0" class="text-center py-8 text-xs text-muted-foreground">
-                    暂无变量，点击上方「添加变量」或切换至「批量文本」快速贴入
+                    暂无变量，点击上方「添加变量」或切换至「文本模式」快速贴入
                   </div>
                 </div>
               </div>
 
-              <!-- 2. 批量文本模式 (KEY=VALUE 或 KEY: VALUE) -->
+              <!-- 2. 文本模式模式 (KEY=VALUE 或 KEY: VALUE) -->
               <div v-else class="flex flex-col h-full space-y-1.5">
                 <div class="text-[11px] text-muted-foreground">
                   每行一条变量，支持 <code class="font-mono bg-muted px-1 py-0.2 rounded">KEY=VALUE</code> 或 <code class="font-mono bg-muted px-1 py-0.2 rounded">KEY: VALUE</code> 格式：

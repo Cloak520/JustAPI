@@ -216,13 +216,13 @@
                 </span>
                 <button
                   @click="triggerRefreshSwagger(sub.dir_name)"
-                  :disabled="refreshingDir === sub.dir_name"
+                  :disabled="projectStore.refreshingSwaggerDir === sub.dir_name"
                   class="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition"
                   :title="`一键无损刷新 (${sub.config.swaggerSourceUrl})`"
                 >
                   <RefreshCw
                     class="w-3 h-3 text-amber-400"
-                    :class="refreshingDir === sub.dir_name ? 'animate-spin' : ''"
+                    :class="projectStore.refreshingSwaggerDir === sub.dir_name ? 'animate-spin' : ''"
                   />
                 </button>
               </div>
@@ -286,8 +286,14 @@
                   <div
                     v-for="req in grp.requests"
                     :key="req.id || req.fileName"
+                    :id="getReqDomId(sub.dir_name, req)"
                     @click="tabStore.openTab(req, sub.dir_name)"
-                    class="flex items-center justify-between py-1.5 pr-2 pl-1 cursor-pointer hover:bg-muted/40 transition group"
+                    :class="[
+                      isReqHighlighted(sub.dir_name, req)
+                        ? 'bg-primary/20 ring-1 ring-primary/80 font-semibold text-primary rounded-sm shadow-sm'
+                        : 'hover:bg-muted/40'
+                    ]"
+                    class="flex items-center justify-between py-1.5 pr-2 pl-1 cursor-pointer transition group"
                   >
                     <div class="flex items-center space-x-2 truncate">
                       <span class="font-mono font-bold text-[10px]" :class="getMethodColor(req.method)">
@@ -313,7 +319,7 @@
                       <button
                         @click.stop="promptRenameRequest(sub.dir_name, req)"
                         class="p-0.5 rounded text-muted-foreground/60 hover:text-primary transition"
-                        title="重命名接口"
+                        title="编辑接口 (名称/URL)"
                       >
                         <Edit3 class="w-3 h-3" />
                       </button>
@@ -355,8 +361,14 @@
                   <div
                     v-for="req in getSubProjectGroups(sub.requests).ungrouped"
                     :key="req.id || req.fileName"
+                    :id="getReqDomId(sub.dir_name, req)"
                     @click="tabStore.openTab(req, sub.dir_name)"
-                    class="flex items-center justify-between py-1.5 pr-2 pl-1 cursor-pointer hover:bg-muted/40 transition group"
+                    :class="[
+                      isReqHighlighted(sub.dir_name, req)
+                        ? 'bg-primary/20 ring-1 ring-primary/80 font-semibold text-primary rounded-sm shadow-sm'
+                        : 'hover:bg-muted/40'
+                    ]"
+                    class="flex items-center justify-between py-1.5 pr-2 pl-1 cursor-pointer transition group"
                   >
                     <div class="flex items-center space-x-2 truncate">
                       <span class="font-mono font-bold text-[10px]" :class="getMethodColor(req.method)">
@@ -382,7 +394,7 @@
                       <button
                         @click.stop="promptRenameRequest(sub.dir_name, req)"
                         class="p-0.5 rounded text-muted-foreground/60 hover:text-primary transition"
-                        title="重命名接口"
+                        title="编辑接口 (名称/URL)"
                       >
                         <Edit3 class="w-3 h-3" />
                       </button>
@@ -405,8 +417,14 @@
                 <div
                   v-for="req in sub.requests"
                   :key="req.id || req.fileName"
+                  :id="getReqDomId(sub.dir_name, req)"
                   @click="tabStore.openTab(req, sub.dir_name)"
-                  class="flex items-center justify-between py-1.5 pr-2 pl-1 cursor-pointer hover:bg-muted/40 transition group"
+                  :class="[
+                    isReqHighlighted(sub.dir_name, req)
+                      ? 'bg-primary/20 ring-1 ring-primary/80 font-semibold text-primary rounded-sm shadow-sm'
+                      : 'hover:bg-muted/40'
+                  ]"
+                  class="flex items-center justify-between py-1.5 pr-2 pl-1 cursor-pointer transition group"
                 >
                   <div class="flex items-center space-x-2 truncate">
                     <span class="font-mono font-bold text-[10px]" :class="getMethodColor(req.method)">
@@ -432,7 +450,7 @@
                     <button
                       @click.stop="promptRenameRequest(sub.dir_name, req)"
                       class="p-0.5 rounded text-muted-foreground/60 hover:text-primary transition"
-                      title="重命名接口"
+                      title="编辑接口 (名称/URL)"
                     >
                       <Edit3 class="w-3 h-3" />
                     </button>
@@ -459,54 +477,85 @@
 
     <!-- 2. 历史记录视图 -->
     <div v-else class="flex-1 flex flex-col overflow-hidden">
+      <!-- 历史搜索过滤栏 -->
+      <div class="px-2.5 py-1.5 border-b border-border/50 bg-card/40 shrink-0">
+        <div class="relative flex items-center">
+          <Search class="w-3.5 h-3.5 text-muted-foreground/60 absolute left-2.5 pointer-events-none" />
+          <input
+            v-model="historySearchQuery"
+            type="text"
+            placeholder="搜索历史 URL、方法、状态码..."
+            class="w-full pl-8 pr-7 py-1 text-xs rounded-md bg-muted/50 border border-border/60 focus:bg-background focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition text-foreground placeholder:text-muted-foreground/60 font-sans"
+            @keydown.esc="historySearchQuery = ''"
+          />
+          <button
+            v-if="historySearchQuery"
+            @click="historySearchQuery = ''"
+            class="absolute right-2 p-0.5 text-muted-foreground/60 hover:text-foreground rounded transition"
+            title="清空搜索"
+          >
+            <X class="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+
       <div class="p-2 border-b border-border flex items-center justify-between shrink-0 bg-muted/20">
-        <span class="text-[11px] font-medium text-muted-foreground">最近执行历史 (上限 200)</span>
+        <span class="text-[11px] font-medium text-muted-foreground">
+          {{ historySearchQuery.trim() ? `搜索结果 (${filteredHistory.length} / ${projectStore.history.length})` : `最近执行历史 (共 ${projectStore.history.length} 条)` }}
+        </span>
         <button
+          v-if="projectStore.history.length > 0"
           @click="projectStore.clearHistory"
           class="text-[10px] text-muted-foreground hover:text-destructive transition"
+          title="清空全部历史记录"
         >
-          清空
+          清空全部
         </button>
       </div>
 
       <div class="flex-1 overflow-y-auto divide-y divide-border/60">
         <div
-          v-for="h in projectStore.history"
+          v-for="h in filteredHistory"
           :key="h.id"
-          class="p-2.5 hover:bg-muted/30 cursor-pointer transition space-y-1"
+          class="p-2.5 hover:bg-muted/30 cursor-pointer transition space-y-1 group relative"
           @click="loadHistoryToEditor(h)"
         >
           <div class="flex items-center justify-between">
-            <span class="font-mono font-bold text-[10px]" :class="getMethodColor(h.method as any)">
-              {{ h.method }}
-            </span>
-            <span class="font-mono text-[10px]" :class="h.status >= 200 && h.status < 300 ? 'text-emerald-400' : 'text-rose-400'">
-              {{ h.status }} ({{ h.durationMs }}ms)
-            </span>
+            <div class="flex items-center space-x-1.5">
+              <span class="font-mono font-bold text-[10px]" :class="getMethodColor(h.method as any)">
+                {{ h.method }}
+              </span>
+              <span class="font-mono text-[10px]" :class="h.status >= 200 && h.status < 300 ? 'text-emerald-400' : 'text-rose-400'">
+                {{ h.status }} ({{ h.durationMs }}ms)
+              </span>
+            </div>
+
+            <!-- 单条删除按钮 -->
+            <button
+              @click.stop="projectStore.deleteHistoryItem(h.id)"
+              class="p-1 rounded text-muted-foreground/40 hover:text-destructive opacity-0 group-hover:opacity-100 transition"
+              title="删除此条记录"
+            >
+              <Trash2 class="w-3 h-3" />
+            </button>
           </div>
           <div class="text-[11px] text-foreground font-mono truncate" :title="h.url">
             {{ h.url }}
           </div>
-          <div class="text-[10px] text-muted-foreground/60">
-            {{ new Date(h.timestamp).toLocaleTimeString() }}
+          <div class="flex items-center justify-between text-[10px] text-muted-foreground/60">
+            <span>{{ new Date(h.timestamp).toLocaleTimeString() }}</span>
+            <span v-if="h.bodyType && h.bodyType !== 'none'" class="px-1 py-0.2 rounded bg-muted text-[9px] font-mono">
+              Body: {{ h.bodyType }}
+            </span>
           </div>
         </div>
 
-        <div v-if="projectStore.history.length === 0" class="py-6 text-center text-xs text-muted-foreground/60">
-          暂无请求历史
+        <div v-if="filteredHistory.length === 0" class="py-6 text-center text-xs text-muted-foreground/60">
+          {{ historySearchQuery.trim() ? '未找到匹配的历史记录' : '暂无请求历史' }}
         </div>
       </div>
     </div>
 
-    <!-- 操作结果通知 Toast -->
-    <div
-      v-if="toastMessage"
-      class="absolute bottom-3 left-3 right-3 p-2.5 rounded-lg bg-card border border-border shadow-lg flex items-center space-x-2 text-xs z-50 animate-in fade-in slide-in-from-bottom-2"
-    >
-      <CheckCircle2 v-if="!toastIsError" class="w-4 h-4 text-emerald-400 shrink-0" />
-      <AlertCircle v-else class="w-4 h-4 text-destructive shrink-0" />
-      <span class="text-foreground leading-tight">{{ toastMessage }}</span>
-    </div>
 
     <!-- 弹窗：导入 Swagger / OpenAPI -->
     <div
@@ -729,6 +778,8 @@
               <option value="PUT">PUT</option>
               <option value="DELETE">DELETE</option>
               <option value="PATCH">PATCH</option>
+              <option value="HEAD">HEAD</option>
+              <option value="OPTIONS">OPTIONS</option>
             </select>
           </div>
         </div>
@@ -771,21 +822,33 @@
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-2">
             <Edit3 class="w-4 h-4 text-primary" />
-            <h3 class="font-semibold text-sm">重命名接口</h3>
+            <h3 class="font-semibold text-sm">编辑接口信息</h3>
           </div>
           <span class="text-[10px] text-muted-foreground font-mono truncate max-w-[150px]">{{ reqToRename.fileName }}</span>
         </div>
 
-        <div class="space-y-1.5 text-xs">
-          <label class="text-muted-foreground font-medium">接口新名称</label>
-          <input
-            v-model="renameNewTitle"
-            type="text"
-            ref="renameInputRef"
-            @keydown.enter="confirmRenameRequest"
-            placeholder="输入接口名称"
-            class="w-full text-xs px-3 py-2 rounded-lg bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
-          />
+        <div class="space-y-3 text-xs">
+          <div class="space-y-1">
+            <label class="text-muted-foreground font-medium">接口名称</label>
+            <input
+              v-model="renameNewTitle"
+              type="text"
+              ref="renameInputRef"
+              @keydown.enter="confirmRenameRequest"
+              placeholder="输入接口名称"
+              class="w-full text-xs px-3 py-2 rounded-lg bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
+            />
+          </div>
+          <div class="space-y-1">
+            <label class="text-muted-foreground font-medium">请求路径 / 完整 URL</label>
+            <input
+              v-model="renameNewPath"
+              type="text"
+              @keydown.enter="confirmRenameRequest"
+              placeholder="/api/v1/... 或 https://..."
+              class="w-full text-xs px-3 py-2 rounded-lg bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary font-mono text-foreground"
+            />
+          </div>
         </div>
 
         <div class="flex justify-end space-x-2 pt-1 text-xs">
@@ -853,7 +916,7 @@
 import { ref, computed, nextTick, watch } from 'vue'
 import {
   FolderTree, History, FolderOpen, FolderPlus, Plus, Trash2, ChevronRight, FolderCode,
-  FileDown, RefreshCw, CheckCircle2, AlertCircle, Loader2, Settings2, Folder, FolderCog,
+  FileDown, RefreshCw, Loader2, Settings2, Folder, FolderCog,
   UnfoldVertical, FoldVertical, Edit3, AlertTriangle, Search, SearchX, X, Copy
 } from 'lucide-vue-next'
 import { onKeyStroke } from '@vueuse/core'
@@ -862,7 +925,7 @@ import { useTabStore } from '@/stores/tabStore'
 import { useRequestStore } from '@/stores/requestStore'
 import SubProjectSettingsModal from '@/components/modals/SubProjectSettingsModal.vue'
 import ProjectSettingsModal from '@/components/modals/ProjectSettingsModal.vue'
-import type { HttpMethod, HistoryItem, ApiRequest } from '@/types'
+import type { HttpMethod, HistoryItem, ApiRequest, KeyValuePair, BodyType } from '@/types'
 
 const projectStore = useProjectStore()
 const tabStore = useTabStore()
@@ -904,9 +967,93 @@ watch(
   { immediate: true }
 )
 
-// 搜索过滤状态
+// 侧边栏快速定位目标高亮与平滑滚动
+const highlightedReqKey = ref<string | null>(null)
+let highlightClearTimer: ReturnType<typeof setTimeout> | null = null
+
+function getReqDomId(subDir: string, req: ApiRequest) {
+  const identifier = (req.fileName || req.id || '').replace(/[^a-zA-Z0-9_-]/g, '_')
+  return `req-item-${subDir}-${identifier}`
+}
+
+function isReqHighlighted(subDir: string, req: ApiRequest) {
+  if (!highlightedReqKey.value) return false
+  const key1 = `${subDir}:${req.fileName}`
+  const key2 = `${subDir}:${req.id}`
+  return highlightedReqKey.value === key1 || highlightedReqKey.value === key2
+}
+
+watch(
+  () => projectStore.revealTarget,
+  async (target) => {
+    if (!target) return
+
+    // 1. 确保侧边栏处于集合模式
+    sidebarView.value = 'collections'
+
+    // 2. 清空搜索过滤栏，防止该项被检索过滤隐藏
+    if (searchQuery.value) {
+      searchQuery.value = ''
+    }
+
+    // 3. 展开对应的子项目模块
+    openSubprojects.value.add(target.subDir)
+
+    // 4. 找到对应请求，展开所在分组或 __other__
+    const sub = projectStore.subProjects.find(s => s.dir_name === target.subDir)
+    let foundReq: ApiRequest | undefined
+    if (sub) {
+      foundReq = sub.requests.find(r => r.fileName === target.fileName || r.id === target.requestId)
+      if (foundReq?.group && foundReq.group.trim()) {
+        collapsedGroups.value.delete(`${target.subDir}:${foundReq.group.trim()}`)
+      } else {
+        const { hasGroups } = getSubProjectGroups(sub.requests)
+        if (hasGroups) {
+          collapsedGroups.value.delete(`${target.subDir}:__other__`)
+        }
+      }
+    }
+
+    // 5. 设置高亮状态并启动自动清除定时器
+    const identifier = target.fileName || target.requestId || ''
+    highlightedReqKey.value = `${target.subDir}:${identifier}`
+
+    if (highlightClearTimer) clearTimeout(highlightClearTimer)
+    highlightClearTimer = setTimeout(() => {
+      highlightedReqKey.value = null
+    }, 2800)
+
+    // 6. 等待 DOM 渲染后平滑滚动到视野可见区域
+    await nextTick()
+    setTimeout(() => {
+      const cleanId = identifier.replace(/[^a-zA-Z0-9_-]/g, '_')
+      const el = document.getElementById(`req-item-${target.subDir}-${cleanId}`)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }
+    }, 60)
+
+    projectStore.showToast(`已在侧边栏定位: ${foundReq?.name || target.fileName || '接口文件'}`)
+  }
+)
+
+// 接口树搜索过滤状态
 const searchQuery = ref('')
 const searchInputRef = ref<HTMLInputElement | null>(null)
+
+// 历史记录搜索过滤状态
+const historySearchQuery = ref('')
+
+const filteredHistory = computed(() => {
+  const q = historySearchQuery.value.trim().toLowerCase()
+  if (!q) return projectStore.history
+  return projectStore.history.filter(h =>
+    h.url.toLowerCase().includes(q) ||
+    h.method.toLowerCase().includes(q) ||
+    String(h.status).includes(q) ||
+    (h.name && h.name.toLowerCase().includes(q))
+  )
+})
 
 // 快捷键: Cmd/Ctrl + F 聚焦搜索框
 onKeyStroke('f', (e) => {
@@ -984,11 +1131,9 @@ const swaggerTargetSubDir = ref('__NEW__')
 const swaggerNewSubName = ref('Swagger API')
 const swaggerNewSubDir = ref('swagger_api')
 const importingSwagger = ref(false)
-const refreshingDir = ref<string | null>(null)
 
-// Toast 状态
-const toastMessage = ref('')
-const toastIsError = ref(false)
+// 复用 projectStore 的全局 Toast 状态
+const { showToast } = projectStore
 
 // 子项目配置模态框状态
 const showSubSettingsModal = ref(false)
@@ -997,14 +1142,6 @@ const targetSubDirForSettings = ref('')
 function openSubProjectSettings(dirName: string) {
   targetSubDirForSettings.value = dirName
   showSubSettingsModal.value = true
-}
-
-function showToast(msg: string, isError = false) {
-  toastMessage.value = msg
-  toastIsError.value = isError
-  setTimeout(() => {
-    toastMessage.value = ''
-  }, 4000)
 }
 
 function isSubOpen(dir: string) {
@@ -1073,7 +1210,7 @@ function getSubProjectGroups(requests: ApiRequest[]): { groups: RequestGroup[]; 
 function openNewRequestModal(dir: string) {
   targetSubDir.value = dir || (projectStore.subProjects[0]?.dir_name || '')
   newReqName.value = '新请求'
-  newReqPath.value = '/get'
+  newReqPath.value = '/'
   newReqMethod.value = 'GET'
   newReqGroupChoice.value = ''
   newReqCustomGroup.value = ''
@@ -1115,29 +1252,8 @@ async function confirmImportSwagger() {
 }
 
 async function triggerRefreshSwagger(subDir: string) {
-  refreshingDir.value = subDir
-  try {
-    const stats = await projectStore.refreshSwagger(subDir)
-    if (stats) {
-      showToast(`接口刷新完成：更新 ${stats.updated} 个，新增 ${stats.added} 个，已下线 ${stats.deprecated} 个`)
-    }
-  } catch (err: any) {
-    showToast(`刷新失败: ${err?.message || err}`, true)
-  } finally {
-    refreshingDir.value = null
-  }
+  await projectStore.refreshSwaggerWithFeedback(subDir)
 }
-
-// 全局快捷键: Cmd/Ctrl + R 刷新当前子项目的 Swagger
-onKeyStroke('r', (e) => {
-  if (e.metaKey || e.ctrlKey) {
-    e.preventDefault()
-    const target = projectStore.currentSubProjectDir || projectStore.subProjects[0]?.dir_name
-    if (target) {
-      triggerRefreshSwagger(target)
-    }
-  }
-})
 
 async function confirmCreateSubproject() {
   if (!newSubDir.value.trim()) return
@@ -1161,7 +1277,7 @@ async function confirmCreateRequest() {
     id: reqId,
     name: reqName,
     method: newReqMethod.value,
-    path: newReqPath.value.trim() || '/get',
+    path: newReqPath.value.trim() || '/',
     pathParams: [],
     queryParams: [],
     headers: [],
@@ -1272,6 +1388,7 @@ interface RenameState {
 }
 const reqToRename = ref<RenameState | null>(null)
 const renameNewTitle = ref('')
+const renameNewPath = ref('')
 const renameInputRef = ref<HTMLInputElement | null>(null)
 
 function promptRenameRequest(subDir: string, req: ApiRequest) {
@@ -1281,6 +1398,7 @@ function promptRenameRequest(subDir: string, req: ApiRequest) {
     req
   }
   renameNewTitle.value = req.name || ''
+  renameNewPath.value = req.path || ''
   nextTick(() => {
     renameInputRef.value?.focus()
     renameInputRef.value?.select()
@@ -1291,27 +1409,77 @@ async function confirmRenameRequest() {
   if (!reqToRename.value || !renameNewTitle.value.trim()) return
   const { subDir, fileName, req } = reqToRename.value
   const newName = renameNewTitle.value.trim()
+  const newPath = renameNewPath.value.trim() || req.path || '/'
   reqToRename.value = null
 
   try {
     req.name = newName
+    req.path = newPath
     await projectStore.saveRequest(subDir, fileName, req)
 
-    // 同步更新打开的 Tab 标题
+    // 同步更新打开的 Tab 标题与正在编辑的状态
     const openTab = tabStore.tabs.find(t => t.fileName === fileName || t.requestId === req.id)
     if (openTab) {
       openTab.title = newName
+      if (openTab.draftRequest) {
+        openTab.draftRequest.name = newName
+        openTab.draftRequest.path = newPath
+      }
+      if (openTab.id === tabStore.activeTabId) {
+        requestStore.path = newPath
+      }
     }
-    showToast(`接口已重命名为: ${newName}`)
+    showToast(`接口信息已更新: ${newName}`)
   } catch (err: any) {
-    showToast(`重命名失败: ${err?.message || err}`, true)
+    showToast(`更新接口失败: ${err?.message || err}`, true)
   }
 }
 
 function loadHistoryToEditor(item: HistoryItem) {
-  requestStore.method = item.method as HttpMethod
-  requestStore.path = item.url
-  requestStore.send()
+  const currentTab = tabStore.tabs.find(t => t.id === tabStore.activeTabId)
+  const isPristineDefault = currentTab &&
+    !currentTab.subProjectDir &&
+    !currentTab.isDirty &&
+    currentTab.title === '新建请求' &&
+    requestStore.path === '/'
+
+  const method = (item.method || 'GET') as HttpMethod
+  const path = item.url
+  const restoredHeaders: KeyValuePair[] = (item.headers || []).map(([k, v]) => ({
+    id: crypto.randomUUID(),
+    key: k,
+    value: v,
+    enabled: true
+  }))
+  const bodyType = (item.bodyType as BodyType) || 'none'
+  const bodyContent = item.bodyContent || ''
+
+  if (isPristineDefault && currentTab) {
+    currentTab.title = item.name || item.url
+    currentTab.method = method
+    requestStore.method = method
+    requestStore.path = path
+    requestStore.headers = restoredHeaders
+    requestStore.bodyType = bodyType
+    requestStore.bodyContent = bodyContent
+    requestStore.response = null
+    tabStore.captureCurrentDraft()
+  } else {
+    const historyReq: ApiRequest = {
+      id: crypto.randomUUID(),
+      name: item.name || item.url,
+      method,
+      path,
+      pathParams: [],
+      queryParams: [],
+      headers: restoredHeaders,
+      bodyType,
+      bodyContent
+    }
+    tabStore.openTab(historyReq)
+  }
+
+  showToast(`已载入历史请求详情: [${method}] ${path}`)
 }
 
 function getMethodColor(method: HttpMethod) {
@@ -1321,6 +1489,8 @@ function getMethodColor(method: HttpMethod) {
     case 'PUT': return 'text-blue-400'
     case 'DELETE': return 'text-rose-400'
     case 'PATCH': return 'text-purple-400'
+    case 'HEAD': return 'text-teal-400'
+    case 'OPTIONS': return 'text-indigo-400'
     default: return 'text-muted-foreground'
   }
 }

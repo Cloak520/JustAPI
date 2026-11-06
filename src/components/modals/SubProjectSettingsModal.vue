@@ -216,18 +216,22 @@
                   type="checkbox"
                   class="rounded border-border text-primary focus:ring-0"
                 />
-                <input
-                  v-model="h.key"
-                  type="text"
-                  placeholder="Header 键名 (如 Authorization)"
-                  class="w-48 text-xs font-mono px-2.5 py-1.5 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-                <input
-                  v-model="h.value"
-                  type="text"
-                  placeholder="Header 值"
-                  class="flex-1 text-xs font-mono px-2.5 py-1.5 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary"
-                />
+                <div class="w-48">
+                  <AutocompleteInput
+                    v-model="h.key"
+                    placeholder="Header 键名 (如 Authorization)"
+                    :suggestions="COMMON_HEADER_SUGGESTIONS"
+                    input-class="w-full text-xs font-mono px-2.5 py-1.5 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                <div class="flex-1">
+                  <AutocompleteInput
+                    v-model="h.value"
+                    placeholder="Header 值"
+                    :suggestions="getHeaderValueSuggestions(h.key)"
+                    input-class="w-full text-xs font-mono px-2.5 py-1.5 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
                 <button
                   @click="localConfig.headers.splice(idx, 1)"
                   class="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition opacity-0 group-hover:opacity-100"
@@ -269,6 +273,11 @@ import { ref, computed, watch } from 'vue'
 import { X, Settings2, Plus, Trash2 } from 'lucide-vue-next'
 import { useProjectStore } from '@/stores/projectStore'
 import type { SubProjectConfig, KeyValuePair } from '@/types'
+import AutocompleteInput from '@/components/common/AutocompleteInput.vue'
+import {
+  COMMON_HEADER_SUGGESTIONS,
+  getHeaderValueSuggestions
+} from '@/utils/headers'
 
 const props = defineProps<{
   modelValue: boolean

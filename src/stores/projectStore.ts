@@ -18,6 +18,14 @@ export const useProjectStore = defineStore('project', () => {
   const subProjects = ref<SubProjectData[]>([])
   const history = ref<HistoryItem[]>([])
   const currentSubProjectDir = ref<string | null>(null)
+  const sidebarVisible = ref(true)
+  const revealTarget = ref<{
+    subDir: string
+    fileName?: string
+    requestId?: string
+    group?: string
+    timestamp: number
+  } | null>(null)
 
   // 本地存储的最近打开项目
   const recentProjects = useStorage<RecentProject[]>('justapi_recent_projects', [])
@@ -332,6 +340,21 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
+  // 10.1 删除单条历史记录
+  async function deleteHistoryItem(id: string) {
+    history.value = history.value.filter(h => h.id !== id)
+    if (projectPath.value) {
+      try {
+        await invoke('delete_history_item', {
+          projectPath: projectPath.value,
+          itemId: id
+        })
+      } catch (err: any) {
+        console.error('删除历史记录失败', err)
+      }
+    }
+  }
+
   // 11. 导入 Swagger 并无损合并至子项目
   async function importSwagger(subProjectDir: string, sourceUrl: string) {
     if (!projectPath.value) return null
@@ -347,18 +370,70 @@ export const useProjectStore = defineStore('project', () => {
     return stats
   }
 
-  // 12. 一键无损刷新子项目的 Swagger API
+  // 全局通知 Toast 状态与方法
+  const toastMessage = ref('')
+  const toastIsError = ref(false)
+  let toastTimer: ReturnType<typeof setTimeout> | null = null
+
+  function showToast(msg: string, isError = false) {
+    toastMessage.value = msg
+    toastIsError.value = isError
+    if (toastTimer) clearTimeout(toastTimer)
+    toastTimer = setTimeout(() => {
+      toastMessage.value = ''
+    }, 4000)
+  }
+
+  // 12. 一键无损刷新子项目的 Swagger API (含并发锁防抖)
+  const refreshingSwaggerDir = ref<string | null>(null)
+
   async function refreshSwagger(subProjectDir: string) {
-    if (!projectPath.value) return null
-    const stats = await invoke<{ added: number; updated: number; deprecated: number; total: number }>(
-      'refresh_swagger_subproject',
-      {
-        projectPath: projectPath.value,
-        dirName: subProjectDir
+    if (!projectPath.value || refreshingSwaggerDir.value) return null
+    refreshingSwaggerDir.value = subProjectDir
+    try {
+      const stats = await invoke<{ added: number; updated: number; deprecated: number; total: number }>(
+        'refresh_swagger_subproject',
+        {
+          projectPath: projectPath.value,
+          dirName: subProjectDir
+        }
+      )
+      await loadProject(projectPath.value)
+      return stats
+    } finally {
+      refreshingSwaggerDir.value = null
+    }
+  }
+
+  // 12.1 带全局反馈提示的一键刷新逻辑
+  async function refreshSwaggerWithFeedback(subDir?: string) {
+    if (!projectPath.value) {
+      showToast('请先打开或选择一个本地项目', true)
+      return null
+    }
+
+    const targetDir = subDir || currentSubProjectDir.value || subProjects.value[0]?.dir_name
+    if (!targetDir) {
+      showToast('当前项目暂无子项目模块', true)
+      return null
+    }
+
+    const sub = subProjects.value.find(s => s.dir_name === targetDir)
+    if (!sub?.config.swaggerSourceUrl) {
+      showToast(`子项目 [${sub?.config.name || targetDir}] 未绑定 Swagger URL，请先执行导入`, true)
+      return null
+    }
+
+    try {
+      const stats = await refreshSwagger(targetDir)
+      if (stats) {
+        showToast(`接口刷新完成：更新 ${stats.updated} 个，新增 ${stats.added} 个，已下线 ${stats.deprecated} 个`)
       }
-    )
-    await loadProject(projectPath.value)
-    return stats
+      return stats
+    } catch (err: any) {
+      showToast(`刷新失败: ${err?.message || err}`, true)
+      return null
+    }
   }
 
   // 13. 环境变量管理 (兼容打开本地项目目录与纯独立单机使用)
@@ -503,12 +578,31 @@ export const useProjectStore = defineStore('project', () => {
     return interpolateText(text, map)
   }
 
+  // 17. 在左侧边栏树形目录中快速定位文件
+  function revealRequestInSidebar(tab: { subProjectDir?: string; fileName?: string; requestId?: string; group?: string; title?: string }) {
+    if (!tab.subProjectDir || (!tab.fileName && !tab.requestId)) {
+      showToast('当前请求为临时草稿，尚未保存至本地项目文件', true)
+      return false
+    }
+    sidebarVisible.value = true
+    revealTarget.value = {
+      subDir: tab.subProjectDir,
+      fileName: tab.fileName,
+      requestId: tab.requestId,
+      group: tab.group,
+      timestamp: Date.now()
+    }
+    return true
+  }
+
   return {
     projectPath,
     projectConfig,
     subProjects,
     history,
     currentSubProjectDir,
+    sidebarVisible,
+    revealTarget,
     recentProjects,
     hasProject,
     environments,
@@ -528,9 +622,16 @@ export const useProjectStore = defineStore('project', () => {
     duplicateRequest,
     deleteRequest,
     recordHistory,
+    deleteHistoryItem,
     clearHistory,
     importSwagger,
     refreshSwagger,
+    refreshingSwaggerDir,
+    refreshSwaggerWithFeedback,
+    toastMessage,
+    toastIsError,
+    showToast,
+    revealRequestInSidebar,
     setActiveEnvironment,
     createEnvironment,
     updateEnvironment,

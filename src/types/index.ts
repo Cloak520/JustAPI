@@ -9,6 +9,7 @@ export interface KeyValuePair {
   enabled: boolean
   description?: string
   inheritedFrom?: 'project' | 'subproject'
+  isInheritedOverride?: boolean
 }
 
 export interface ApiRequest {
@@ -51,6 +52,7 @@ export interface ApiResponse {
   body: string
   timestamp: number
   isTruncated?: boolean
+  contentType?: string
 }
 
 export interface Environment {
@@ -90,6 +92,9 @@ export interface HistoryItem {
   status: number
   durationMs: number
   timestamp: number
+  headers?: [string, string][]
+  bodyType?: string
+  bodyContent?: string
 }
 
 export interface SubProjectData {
@@ -114,4 +119,6 @@ export interface TabItem {
   fileName?: string
   requestId?: string
   group?: string
+  draftRequest?: ApiRequest
+  cachedResponse?: ApiResponse | null
 }

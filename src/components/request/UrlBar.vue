@@ -52,6 +52,7 @@
           v-model="store.method"
           :class="methodColorClass"
           class="font-mono font-bold text-xs px-3 py-2 rounded-lg border border-border appearance-none cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary pr-7 transition"
+          @change="handleMethodChange"
         >
           <option value="GET">GET</option>
           <option value="POST">POST</option>
@@ -72,32 +73,47 @@
           <span class="max-w-[120px] truncate font-sans font-medium text-[11px]">{{ store.group }}</span>
         </div>
 
-        <!-- 继承的 BaseURL 标签/前缀 -->
-        <div class="px-2.5 py-1.5 bg-muted/60 text-muted-foreground text-xs font-mono border-r border-border flex items-center space-x-1.5 shrink-0 select-none">
+        <!-- 继承的 BaseURL 标签/前缀 (输入绝对地址 https?:// 或 {{...}} 时自动优雅收起) -->
+        <div
+          v-if="!isAbsoluteUrl"
+          class="px-2.5 py-1.5 bg-muted/60 text-muted-foreground text-xs font-mono border-r border-border flex items-center space-x-1.5 shrink-0 select-none transition-all animate-in fade-in duration-150"
+        >
           <Globe class="w-3.5 h-3.5 text-primary/80" />
           <span class="max-w-[200px] truncate" :title="store.interpolatedBaseUrl !== store.baseUrl ? `${store.baseUrl} -> ${store.interpolatedBaseUrl}` : (store.baseUrl || '无 BaseURL')">{{ store.interpolatedBaseUrl || store.baseUrl || '无 BaseURL' }}</span>
         </div>
 
-        <!-- 相对路径 Path 输入 -->
+        <!-- 相对路径 Path 或完整绝对 URL 输入 -->
         <input
           v-model="store.path"
           type="text"
-          placeholder="/api/v1/resource/{id}"
+          :placeholder="isAbsoluteUrl ? 'https://api.example.com/v1/...' : '/api/v1/resource/{id} (可直接输入完整 https:// 地址)'"
           class="w-full bg-transparent px-3 py-2 text-xs font-mono text-foreground focus:outline-none"
+          @input="handlePathInput"
+          @change="handlePathChange"
+          @blur="handlePathChange"
           @keydown.enter="store.send"
         />
       </div>
 
-      <!-- 发送按钮 -->
+      <!-- 发送 / 取消按钮 -->
       <button
+        v-if="store.loading"
+        @click="store.cancelRequest"
+        class="flex items-center space-x-1.5 px-3.5 py-2 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 font-medium text-xs transition shadow-sm shrink-0 animate-in fade-in"
+        title="中途取消此请求"
+      >
+        <Square class="w-3 h-3 fill-current" />
+        <span>Cancel</span>
+      </button>
+
+      <button
+        v-else
         @click="store.send"
-        :disabled="store.loading"
-        class="flex items-center space-x-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium text-xs hover:bg-primary/90 transition shadow-sm disabled:opacity-50 shrink-0"
+        class="flex items-center space-x-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium text-xs hover:bg-primary/90 transition shadow-sm shrink-0"
         title="快捷键: Cmd/Ctrl + Enter"
       >
-        <Loader2 v-if="store.loading" class="w-3.5 h-3.5 animate-spin" />
-        <Send v-else class="w-3.5 h-3.5" />
-        <span>{{ store.loading ? '请求中...' : 'Send' }}</span>
+        <Send class="w-3.5 h-3.5" />
+        <span>Send</span>
       </button>
     </div>
 
@@ -170,11 +186,10 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { ChevronDown, Send, Loader2, Globe, Folder, Edit3, Copy, Check } from 'lucide-vue-next'
+import { ChevronDown, Send, Globe, Folder, Edit3, Copy, Check, Square } from 'lucide-vue-next'
 import { useRequestStore } from '@/stores/requestStore'
 import { useTabStore } from '@/stores/tabStore'
 import { useProjectStore } from '@/stores/projectStore'
-import { onKeyStroke } from '@vueuse/core'
 import type { ApiRequest } from '@/types'
 
 const store = useRequestStore()
@@ -199,18 +214,57 @@ const tabTitle = computed({
   }
 })
 
+const isAbsoluteUrl = computed(() => {
+  const p = store.path.trim()
+  return /^https?:\/\//i.test(p) || p.startsWith('{{')
+})
+
+function handlePathInput() {
+  if (activeTab.value) {
+    tabStore.markCurrentDirty(true)
+  }
+}
+
+async function handlePathChange() {
+  await autoSaveCurrentRequest()
+}
+
+async function handleMethodChange() {
+  if (activeTab.value) {
+    activeTab.value.method = store.method
+    tabStore.markCurrentDirty(true)
+    await autoSaveCurrentRequest()
+  }
+}
+
 async function handleTabTitleChange() {
   if (!activeTab.value) return
   const newName = activeTab.value.title.trim() || '未命名请求'
   activeTab.value.title = newName
+  await autoSaveCurrentRequest()
+}
+
+async function autoSaveCurrentRequest() {
+  if (!activeTab.value) return
+  tabStore.captureCurrentDraft()
 
   // 若当前请求已在子项目中保存过文件，自动同步更新到文件和内存列表中
   if (activeTab.value.subProjectDir && activeTab.value.fileName && projectStore.projectPath) {
     const sub = projectStore.subProjects.find(s => s.dir_name === activeTab.value?.subProjectDir)
     const existingReq = sub?.requests.find(r => r.fileName === activeTab.value?.fileName || r.id === activeTab.value?.requestId)
     if (existingReq) {
-      existingReq.name = newName
+      existingReq.name = activeTab.value.title || existingReq.name || existingReq.path
+      existingReq.method = store.method
+      existingReq.path = store.path.trim()
+      existingReq.pathParams = JSON.parse(JSON.stringify(store.pathParams))
+      existingReq.queryParams = JSON.parse(JSON.stringify(store.queryParams))
+      existingReq.headers = JSON.parse(JSON.stringify(store.headers))
+      existingReq.bodyType = store.bodyType
+      existingReq.bodyContent = store.bodyContent
+      existingReq.group = activeTab.value.group || store.group || existingReq.group
+
       await projectStore.saveRequest(activeTab.value.subProjectDir, activeTab.value.fileName, existingReq)
+      activeTab.value.isDirty = false
     }
   }
 }
@@ -222,6 +276,8 @@ const methodColorClass = computed(() => {
     case 'PUT': return 'bg-blue-500/10 text-blue-400 border-blue-500/30'
     case 'DELETE': return 'bg-rose-500/10 text-rose-400 border-rose-500/30'
     case 'PATCH': return 'bg-purple-500/10 text-purple-400 border-purple-500/30'
+    case 'HEAD': return 'bg-teal-500/10 text-teal-400 border-teal-500/30'
+    case 'OPTIONS': return 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30'
     default: return 'bg-muted text-muted-foreground'
   }
 })
@@ -273,13 +329,5 @@ async function handleDuplicateCurrent() {
     tabStore.duplicateMemoryTab(activeTab.value.id)
   }
 }
-
-// 快捷键 Cmd/Ctrl + Enter 发送请求
-onKeyStroke('Enter', (e) => {
-  if (e.metaKey || e.ctrlKey) {
-    e.preventDefault()
-    store.send()
-  }
-})
 </script>
 

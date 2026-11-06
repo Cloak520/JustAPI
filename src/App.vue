@@ -1,8 +1,13 @@
 <template>
   <div class="flex flex-col h-screen w-screen bg-background text-foreground select-none overflow-hidden">
     <!-- 顶部导航栏 / 窗口控制区 (支持 macOS 原生拖拽移动) -->
-    <header class="relative z-30 flex items-center justify-between px-3 h-10 border-b border-border bg-card/60 backdrop-blur shrink-0" data-tauri-drag-region>
-      <div class="flex items-center space-x-2">
+    <header
+      class="relative z-30 flex items-center justify-between px-3 h-10 border-b border-border bg-card/60 backdrop-blur shrink-0 select-none"
+      data-tauri-drag-region
+      @mousedown="handleHeaderMouseDown"
+      @dblclick="handleHeaderDblClick"
+    >
+      <div class="flex items-center space-x-2 shrink-0" data-tauri-drag-region>
         <!-- 侧边栏折叠切换按钮 (Cmd/Ctrl + \) -->
         <button
           @click="sidebarVisible = !sidebarVisible"
@@ -13,17 +18,20 @@
           <PanelLeft class="w-4 h-4" :class="sidebarVisible ? 'text-primary' : 'text-muted-foreground'" />
         </button>
 
-        <div class="flex items-center space-x-1.5 pl-1">
-          <div class="w-5 h-5 rounded bg-primary/20 flex items-center justify-center text-primary font-bold text-[11px] tracking-tighter">
+        <div class="flex items-center space-x-1.5 pl-1 cursor-default" data-tauri-drag-region>
+          <div class="w-5 h-5 rounded bg-primary/20 flex items-center justify-center text-primary font-bold text-[11px] tracking-tighter pointer-events-none">
             J
           </div>
-          <span class="font-semibold text-xs tracking-wide">JustAPI</span>
+          <span class="font-semibold text-xs tracking-wide pointer-events-none">JustAPI</span>
         </div>
       </div>
 
+      <!-- 左中之间空白拖拽区 -->
+      <div class="flex-1 h-full min-w-[20px]" data-tauri-drag-region />
+
       <!-- 中间：当前 BaseURL 与级联继承显示 -->
-      <div class="flex items-center space-x-2 text-xs">
-        <span class="text-muted-foreground text-[11px] font-mono">BaseURL:</span>
+      <div class="flex items-center space-x-2 text-xs shrink-0">
+        <span class="text-muted-foreground text-[11px] font-mono select-none" data-tauri-drag-region>BaseURL:</span>
         <div class="relative flex items-center group">
           <input
             v-model="store.baseUrl"
@@ -44,8 +52,11 @@
         </div>
       </div>
 
+      <!-- 中右之间空白拖拽区 -->
+      <div class="flex-1 h-full min-w-[20px]" data-tauri-drag-region />
+
       <!-- 右侧：环境变量快速切换 + 保存当前接口与快捷动作 -->
-      <div class="flex items-center space-x-2 text-xs">
+      <div class="flex items-center space-x-2 text-xs shrink-0">
         <!-- 环境变量下拉切换器 -->
         <div ref="envDropdownRef" class="relative">
           <button
@@ -123,6 +134,62 @@
           <span>保存</span>
         </button>
 
+        <!-- 主题切换下拉按钮 (深色 / 浅色 / 跟随系统) -->
+        <div ref="themeDropdownRef" class="relative">
+          <button
+            @click="showThemeDropdown = !showThemeDropdown"
+            class="flex items-center justify-center w-7 h-7 rounded bg-muted/80 hover:bg-muted text-foreground transition border border-border/60"
+            :title="themeTitle"
+          >
+            <Moon v-if="colorMode === 'dark'" class="w-3.5 h-3.5 text-primary" />
+            <Sun v-else-if="colorMode === 'light'" class="w-3.5 h-3.5 text-amber-500" />
+            <Laptop v-else class="w-3.5 h-3.5 text-emerald-500" />
+          </button>
+
+          <!-- 主题切换下拉选项面板 -->
+          <div
+            v-if="showThemeDropdown"
+            class="absolute right-0 top-full mt-1.5 w-36 rounded-xl border border-border bg-card p-1 shadow-2xl z-50 text-xs animate-in fade-in zoom-in-95"
+            @click.stop
+          >
+            <div
+              @click="selectTheme('dark')"
+              class="flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer hover:bg-muted transition text-xs"
+              :class="colorMode === 'dark' ? 'bg-primary/10 text-primary font-medium' : 'text-foreground'"
+            >
+              <div class="flex items-center space-x-2">
+                <Moon class="w-3.5 h-3.5 text-primary" />
+                <span>深色模式</span>
+              </div>
+              <Check v-if="colorMode === 'dark'" class="w-3.5 h-3.5 text-primary" />
+            </div>
+
+            <div
+              @click="selectTheme('light')"
+              class="flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer hover:bg-muted transition text-xs"
+              :class="colorMode === 'light' ? 'bg-primary/10 text-primary font-medium' : 'text-foreground'"
+            >
+              <div class="flex items-center space-x-2">
+                <Sun class="w-3.5 h-3.5 text-amber-500" />
+                <span>浅色模式</span>
+              </div>
+              <Check v-if="colorMode === 'light'" class="w-3.5 h-3.5 text-primary" />
+            </div>
+
+            <div
+              @click="selectTheme('auto')"
+              class="flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer hover:bg-muted transition text-xs"
+              :class="colorMode === 'auto' ? 'bg-primary/10 text-primary font-medium' : 'text-foreground'"
+            >
+              <div class="flex items-center space-x-2">
+                <Laptop class="w-3.5 h-3.5 text-emerald-500" />
+                <span>跟随系统</span>
+              </div>
+              <Check v-if="colorMode === 'auto'" class="w-3.5 h-3.5 text-primary" />
+            </div>
+          </div>
+        </div>
+
         <!-- Windows / Linux 原生无边框窗口控制按钮 -->
         <div v-if="!isMac" class="flex items-center ml-1 border-l border-border/60 pl-1.5 space-x-0.5">
           <button
@@ -161,37 +228,78 @@
 
     <!-- 主工作区：左侧边栏 (项目与子项目树) + 右侧标签页与构建器 -->
     <div class="flex-1 flex overflow-hidden">
-      <!-- 1. 左侧边栏 (树形项目与历史记录) -->
-      <Sidebar v-show="sidebarVisible" class="w-72 shrink-0 transition-all" />
+      <!-- 1. 左侧边栏 (树形项目与历史记录，支持左右自由拖拽调整宽度) -->
+      <Sidebar
+        v-show="sidebarVisible"
+        :style="{ width: `${sidebarWidth}px` }"
+        class="shrink-0"
+      />
+
+      <!-- 侧边栏左右拖拽调整手柄 (双击恢复默认宽度 288px) -->
+      <div
+        v-if="sidebarVisible"
+        class="w-1.5 hover:w-2 -ml-1 z-20 cursor-col-resize flex items-center justify-center shrink-0 group select-none transition-all hover:bg-primary/50 active:bg-primary"
+        @mousedown="handleSidebarSplitterMouseDown"
+        @dblclick="resetSidebarWidth"
+        title="左右拖拽调整侧边栏宽度 (双击恢复默认 288px)"
+      >
+        <div class="w-0.5 h-8 rounded-full bg-border group-hover:bg-primary/80 transition-colors"></div>
+      </div>
 
       <!-- 2. 右侧主工作台 -->
       <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
         <!-- 标签页管理栏 -->
         <TabBar />
 
-        <div class="flex-1 flex flex-col p-3 space-y-3 overflow-hidden">
-          <!-- 上半区：请求构建器 -->
-          <section class="flex flex-col space-y-2.5 shrink-0 max-h-[50%] min-h-[250px] p-3 rounded-xl border border-border bg-card/40 backdrop-blur shadow-sm">
+        <div class="flex-1 flex flex-col p-3 overflow-hidden">
+          <!-- 上半区：请求构建器 (固定高度，切换Tab不改变高度) -->
+          <section
+            class="flex flex-col space-y-2.5 shrink-0 p-3 rounded-xl border border-border bg-card/40 backdrop-blur shadow-sm overflow-hidden"
+            :style="{ height: `${requestHeight}px` }"
+          >
             <UrlBar />
             <div class="flex-1 overflow-hidden min-h-0">
               <RequestBuilder />
             </div>
           </section>
 
-          <!-- 下半区：响应查看器 -->
+          <!-- 上下分栏拖拽调整手柄 (双击恢复默认高度 350px) -->
+          <div
+            class="h-3 my-0.5 cursor-row-resize flex items-center justify-center shrink-0 group select-none transition"
+            @mousedown="handleSplitterMouseDown"
+            @dblclick="resetRequestHeight"
+            title="上下拖拽调整请求与响应区高度 (双击恢复默认高度 350px)"
+          >
+            <div class="w-10 h-1 rounded-full bg-border/60 group-hover:bg-primary/70 group-active:bg-primary transition-colors"></div>
+          </div>
+
+          <!-- 下半区：响应查看器 (自适应撑满剩余高度) -->
           <section class="flex-1 flex flex-col p-3 rounded-xl border border-border bg-card/40 backdrop-blur shadow-sm overflow-hidden min-h-0">
             <ResponseViewer />
           </section>
         </div>
       </main>
     </div>
+
+    <!-- 全局操作通知 Toast (浮动右下角，不受侧边栏折叠影响) -->
+    <div
+      v-if="projectStore.toastMessage"
+      class="fixed bottom-4 right-4 z-50 flex items-center space-x-2 px-3.5 py-2.5 rounded-xl bg-card/95 border border-border shadow-2xl backdrop-blur text-xs animate-in fade-in slide-in-from-bottom-2 select-none"
+    >
+      <CheckCircle2 v-if="!projectStore.toastIsError" class="w-4 h-4 text-emerald-400 shrink-0" />
+      <AlertCircle v-else class="w-4 h-4 text-destructive shrink-0" />
+      <span class="text-foreground font-medium leading-tight">{{ projectStore.toastMessage }}</span>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { PanelLeft, Save, Globe, ChevronDown, Check, Settings, SlidersHorizontal, Minus, Square, X } from 'lucide-vue-next'
-import { onKeyStroke, onClickOutside } from '@vueuse/core'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import {
+  PanelLeft, Save, Globe, ChevronDown, Check, Settings, SlidersHorizontal,
+  Minus, Square, X, CheckCircle2, AlertCircle, Sun, Moon, Laptop
+} from 'lucide-vue-next'
+import { onKeyStroke, onClickOutside, useColorMode } from '@vueuse/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useRequestStore } from '@/stores/requestStore'
 import { useProjectStore } from '@/stores/projectStore'
@@ -210,16 +318,182 @@ const store = useRequestStore()
 const projectStore = useProjectStore()
 const tabStore = useTabStore()
 
+// 多主题外观管理 (深色 / 浅色 / 跟随系统)
+const colorMode = useColorMode({
+  attribute: 'class',
+  modes: {
+    light: '',
+    dark: 'dark'
+  },
+  storageKey: 'justapi_theme_mode',
+  initialValue: 'dark'
+})
+const themeDropdownRef = ref<HTMLElement | null>(null)
+const showThemeDropdown = ref(false)
+
+onClickOutside(themeDropdownRef, () => {
+  showThemeDropdown.value = false
+})
+
+function selectTheme(mode: 'dark' | 'light' | 'auto') {
+  colorMode.value = mode
+  showThemeDropdown.value = false
+}
+
+const themeTitle = computed(() => {
+  if (colorMode.value === 'dark') return '当前主题: 深色模式'
+  if (colorMode.value === 'light') return '当前主题: 浅色模式'
+  return '当前主题: 跟随系统'
+})
+
 const isMac = ref(typeof navigator !== 'undefined' && /macintosh|mac os x/i.test(navigator.userAgent))
-const sidebarVisible = ref(true)
+const sidebarVisible = computed({
+  get: () => projectStore.sidebarVisible,
+  set: (val: boolean) => { projectStore.sidebarVisible = val }
+})
 const envDropdownRef = ref<HTMLElement | null>(null)
 const showEnvDropdown = ref(false)
 const showEnvModal = ref(false)
 const showNetworkModal = ref(false)
 
+// 侧边栏宽度与左右拖拽调整 (默认 288px)
+const DEFAULT_SIDEBAR_WIDTH = 288
+const sidebarWidth = ref<number>(
+  (() => {
+    const saved = localStorage.getItem('justapi_sidebar_width')
+    const parsed = saved ? parseInt(saved, 10) : NaN
+    return !isNaN(parsed) && parsed >= 200 && parsed <= 600 ? parsed : DEFAULT_SIDEBAR_WIDTH
+  })()
+)
+
+let isDraggingSidebar = false
+let startSidebarX = 0
+let startSidebarWidth = 0
+
+function handleSidebarSplitterMouseDown(e: MouseEvent) {
+  isDraggingSidebar = true
+  startSidebarX = e.clientX
+  startSidebarWidth = sidebarWidth.value
+  window.addEventListener('mousemove', handleSidebarSplitterMouseMove)
+  window.addEventListener('mouseup', handleSidebarSplitterMouseUp)
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+}
+
+function handleSidebarSplitterMouseMove(e: MouseEvent) {
+  if (!isDraggingSidebar) return
+  const delta = e.clientX - startSidebarX
+  const minW = 200
+  const maxW = Math.min(600, window.innerWidth - 450)
+  const newWidth = Math.max(minW, Math.min(maxW, startSidebarWidth + delta))
+  sidebarWidth.value = Math.round(newWidth)
+}
+
+function handleSidebarSplitterMouseUp() {
+  if (!isDraggingSidebar) return
+  isDraggingSidebar = false
+  window.removeEventListener('mousemove', handleSidebarSplitterMouseMove)
+  window.removeEventListener('mouseup', handleSidebarSplitterMouseUp)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  localStorage.setItem('justapi_sidebar_width', String(sidebarWidth.value))
+}
+
+function resetSidebarWidth() {
+  sidebarWidth.value = DEFAULT_SIDEBAR_WIDTH
+  localStorage.setItem('justapi_sidebar_width', String(DEFAULT_SIDEBAR_WIDTH))
+}
+
+// 请求构建区固定高度与分栏拖拽调整
+const DEFAULT_REQUEST_HEIGHT = 350
+const requestHeight = ref<number>(
+  (() => {
+    const saved = localStorage.getItem('justapi_request_section_height')
+    const parsed = saved ? parseInt(saved, 10) : NaN
+    return !isNaN(parsed) && parsed >= 200 && parsed <= 800 ? parsed : DEFAULT_REQUEST_HEIGHT
+  })()
+)
+
+let isDraggingSplitter = false
+let startY = 0
+let startHeight = 0
+
+function handleSplitterMouseDown(e: MouseEvent) {
+  isDraggingSplitter = true
+  startY = e.clientY
+  startHeight = requestHeight.value
+  window.addEventListener('mousemove', handleSplitterMouseMove)
+  window.addEventListener('mouseup', handleSplitterMouseUp)
+  document.body.style.cursor = 'row-resize'
+  document.body.style.userSelect = 'none'
+}
+
+function handleSplitterMouseMove(e: MouseEvent) {
+  if (!isDraggingSplitter) return
+  const delta = e.clientY - startY
+  const minH = 220
+  const maxH = Math.max(minH, window.innerHeight - 260)
+  const newHeight = Math.max(minH, Math.min(maxH, startHeight + delta))
+  requestHeight.value = Math.round(newHeight)
+}
+
+function handleSplitterMouseUp() {
+  if (!isDraggingSplitter) return
+  isDraggingSplitter = false
+  window.removeEventListener('mousemove', handleSplitterMouseMove)
+  window.removeEventListener('mouseup', handleSplitterMouseUp)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  localStorage.setItem('justapi_request_section_height', String(requestHeight.value))
+}
+
+function resetRequestHeight() {
+  requestHeight.value = DEFAULT_REQUEST_HEIGHT
+  localStorage.setItem('justapi_request_section_height', String(DEFAULT_REQUEST_HEIGHT))
+}
+
+onBeforeUnmount(() => {
+  window.removeEventListener('mousemove', handleSplitterMouseMove)
+  window.removeEventListener('mouseup', handleSplitterMouseUp)
+  window.removeEventListener('mousemove', handleSidebarSplitterMouseMove)
+  window.removeEventListener('mouseup', handleSidebarSplitterMouseUp)
+})
+
+onMounted(() => {
+  tabStore.initSession()
+  window.addEventListener('beforeunload', () => {
+    tabStore.captureCurrentDraft()
+  })
+})
+
 onClickOutside(envDropdownRef, () => {
   showEnvDropdown.value = false
 })
+
+async function handleHeaderMouseDown(e: MouseEvent) {
+  if (e.button !== 0) return
+  const target = e.target as HTMLElement | null
+  if (target?.closest('button, input, select, textarea, [role="button"], a')) {
+    return
+  }
+  try {
+    await getCurrentWindow().startDragging()
+  } catch {
+    // ignore
+  }
+}
+
+async function handleHeaderDblClick(e: MouseEvent) {
+  const target = e.target as HTMLElement | null
+  if (target?.closest('button, input, select, textarea, [role="button"], a')) {
+    return
+  }
+  try {
+    await getCurrentWindow().toggleMaximize()
+  } catch {
+    // ignore
+  }
+}
 
 async function minimizeWindow() {
   try {
@@ -323,6 +597,9 @@ async function saveCurrentRequest() {
 
   await projectStore.saveRequest(targetSubDir, fileName, reqToSave)
   activeTab.isDirty = false
+  if (!activeTab.fileName) activeTab.fileName = fileName
+  if (!activeTab.requestId) activeTab.requestId = reqToSave.id
+  projectStore.showToast(`接口已保存: ${reqName}`)
 }
 
 // 快捷键: Cmd/Ctrl + S 保存
@@ -357,7 +634,7 @@ onKeyStroke('\\', (e) => {
   }
 })
 
-// 快捷键: Cmd/Ctrl + Enter 发送请求
+// 快捷键: Cmd/Ctrl + Enter 发送请求 (唯一全局监听)
 onKeyStroke('Enter', (e) => {
   if (e.metaKey || e.ctrlKey) {
     e.preventDefault()
@@ -365,12 +642,16 @@ onKeyStroke('Enter', (e) => {
   }
 })
 
-// 快捷键: Cmd/Ctrl + R 刷新当前子项目的 Swagger API
+// 快捷键: Cmd/Ctrl + R 刷新当前接口所属或当前选定子项目的 Swagger API (唯一全局监听)
 onKeyStroke('r', (e) => {
   if (e.metaKey || e.ctrlKey) {
     e.preventDefault()
-    if (projectStore.currentSubProjectDir) {
-      projectStore.refreshSwagger(projectStore.currentSubProjectDir)
+    const activeTab = tabStore.tabs.find(t => t.id === tabStore.activeTabId)
+    const targetDir = activeTab?.subProjectDir || projectStore.currentSubProjectDir || projectStore.subProjects[0]?.dir_name
+    if (targetDir) {
+      projectStore.refreshSwaggerWithFeedback(targetDir)
+    } else {
+      projectStore.showToast('请先打开或选择包含 Swagger 的子项目模块', true)
     }
   }
 })
