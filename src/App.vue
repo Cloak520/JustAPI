@@ -202,9 +202,10 @@
           <button
             @click="maximizeWindow"
             class="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition"
-            title="最大化 / 还原"
+            :title="isMaximized ? '还原' : '最大化'"
           >
-            <Square class="w-3 h-3" />
+            <Minimize2 v-if="isMaximized" class="w-3.5 h-3.5" />
+            <Maximize2 v-else class="w-3.5 h-3.5" />
           </button>
           <button
             @click="closeWindow"
@@ -297,7 +298,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import {
   PanelLeft, Save, Globe, ChevronDown, Check, Settings, SlidersHorizontal,
-  Minus, Square, X, CheckCircle2, AlertCircle, Sun, Moon, Laptop
+  Minus, Maximize2, Minimize2, X, CheckCircle2, AlertCircle, Sun, Moon, Laptop
 } from 'lucide-vue-next'
 import { onKeyStroke, onClickOutside, useColorMode } from '@vueuse/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -343,15 +344,10 @@ function applyTheme(mode: ThemeMode) {
     document.documentElement.style.colorScheme = 'light'
   }
 
-  // 同步更新 Windows / macOS 窗口原生主题模式 (Windows DWM 沉浸式深浅色边框与标题栏)
-  try {
-    const win = getCurrentWindow()
-    if (win && typeof win.setTheme === 'function') {
-      win.setTheme(mode === 'auto' ? null : (isDark ? 'dark' : 'light'))
-    }
-  } catch {
-    // ignore
-  }
+  // 同步更新 Windows / macOS 窗口原生主题 (需要 core:window:allow-set-theme 权限)
+  getCurrentWindow().setTheme(mode === 'auto' ? null : (isDark ? 'dark' : 'light')).catch(() => {
+    // ignore (permissions not granted or not supported on this platform)
+  })
 }
 
 // 监听系统深浅色偏好变动 (当用户选择跟随系统时实时生效)
@@ -393,6 +389,22 @@ const themeTitle = computed(() => {
 })
 
 const isMac = ref(typeof navigator !== 'undefined' && /macintosh|mac os x/i.test(navigator.userAgent))
+const isMaximized = ref(false)
+
+// 轮询窗口最大化状态（Tauri 2 的 onResized 回调中更新 isMaximized）
+// unlistenResized 用于在组件卸载时取消监听，防止内存泄漏
+let unlistenResized: (() => void) | null = null
+
+onMounted(async () => {
+  try {
+    isMaximized.value = await getCurrentWindow().isMaximized()
+    unlistenResized = await getCurrentWindow().onResized(async () => {
+      isMaximized.value = await getCurrentWindow().isMaximized()
+    })
+  } catch {
+    // ignore in non-tauri context
+  }
+})
 const sidebarVisible = computed({
   get: () => projectStore.sidebarVisible,
   set: (val: boolean) => { projectStore.sidebarVisible = val }
@@ -503,6 +515,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('mouseup', handleSplitterMouseUp)
   window.removeEventListener('mousemove', handleSidebarSplitterMouseMove)
   window.removeEventListener('mouseup', handleSidebarSplitterMouseUp)
+  // 取消 onResized 监听，防止内存泄漏
+  unlistenResized?.()
 })
 
 onMounted(() => {
