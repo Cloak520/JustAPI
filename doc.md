@@ -1,225 +1,331 @@
-# JustAPI 详细使用与开发指南 (Documentation)
+# JustAPI 开发者与插件开发指南
 
-欢迎查阅 **JustAPI** 完整使用指南与开发手册。本文档涵盖从新手入门、核心功能实战、快捷键与变量规范，到网络配置与构建打包的完整说明。
+本文档面向 **JustAPI 源码贡献者** 与 **外置插件开发者**，涵盖本地环境搭建、工程架构与 `.justapi/plugins/` 外置插件（API v1）完整开发规范。
+
+> 若想了解软件日常界面操作与功能使用，请参阅 **[软件使用教程 (usage.md)](usage.md)**。
 
 ---
 
 ## 目录
-1. [新手快速上手](#-新手快速上手)
-2. [核心功能教程](#-核心功能教程)
-   - [2.1 目录即项目与层级级联继承](#21-目录即项目与层级级联继承)
-   - [2.2 RESTful 请求与双模式编辑](#22-restful-请求与双模式编辑)
-   - [2.3 高性能 JSON 与响应查看](#23-高性能-json-与响应查看)
-   - [2.4 Swagger / OpenAPI 导入与一键刷新](#24-swagger--openapi-导入与一键刷新)
-   - [2.5 环境变量与动态插值](#25-环境变量与动态插值)
-3. [⌨️ 常用全局快捷键速查表](#️-常用全局快捷键速查表)
-4. [⚡ 动态插值与内置变量规范](#-动态插值与内置变量规范)
-5. [🌐 网络与高级设置](#-网络与高级设置)
-6. [🛠️ 开发者指南：环境搭建与构建打包](#️-开发者指南环境搭建与构建打包)
+
+1. [本地开发与构建发布](#1-本地开发与构建发布)
+   - [1.1 环境要求](#11-环境要求)
+   - [1.2 常用开发与测试命令](#12-常用开发与测试命令)
+   - [1.3 跨平台打包与 GitHub Actions 发布](#13-跨平台打包与-github-actions-发布)
+2. [工程架构与核心模块](#2-工程架构与核心模块)
+   - [2.1 前端分层与核心机制](#21-前端分层与核心机制)
+   - [2.2 Rust 原生核心与 Tauri 命令](#22-rust-原生核心与-tauri-命令)
+3. [外置插件系统设计（API v1）](#3-外置插件系统设计api-v1)
+   - [3.1 作用域、优先级与状态持久化](#31-作用域优先级与状态持久化)
+   - [3.2 manifest.json 规范与安全校验](#32-manifestjson-规范与安全校验)
+   - [3.3 生命周期与保留标识约束](#33-生命周期与保留标识约束)
+4. [JustAPIPluginContext API 参考与实战](#4-justapiplugincontext-api-参考与实战)
+   - [4.1 上下文辅助属性与方法](#41-上下文辅助属性与方法)
+   - [4.2 注册动态变量与全局命令](#42-注册动态变量与全局命令)
+   - [4.3 洋葱模型请求中间件](#43-洋葱模型请求中间件)
+   - [4.4 注册请求 / 响应 Tab 与样式（零构建 UI）](#44-注册请求--响应-tab-与样式零构建-ui)
+   - [4.5 注册自定义 Body 编辑器与请求导入/导出器](#45-注册自定义-body-编辑器与请求导入导出器)
+   - [4.6 注册接口集合导入器（Collection Importer）](#46-注册接口集合导入器collection-importer)
+5. [官方内置插件参考与本地调试](#5-官方内置插件参考与本地调试)
 
 ---
 
-## 🚀 新手快速上手
+## 1. 本地开发与构建发布
 
-### 步骤 1：创建或打开项目目录 (Folder-as-Project)
-1. 启动 JustAPI 后，在启动页或菜单栏点击 **「打开本地目录」**。
-2. 推荐直接选择您正在开发的后端项目工程目录，或专门的文档目录（如 `~/my-project/api-docs`）。
-3. JustAPI 会在所选根目录下自动生成 `.justapi/project.json` 全局配置文件。该目录天然支持 Git 版本控制。
+### 1.1 环境要求
 
-### 步骤 2：创建子项目模块与请求
-1. 在左侧边栏树形菜单中点击 **「新建子项目」**（如 `user-service`, `order-service`）。
-2. 在子项目或分组下点击 **「新建请求」**，输入请求名称（如 `用户登录`）。
-3. 也可以选择直接从 Swagger / OpenAPI URL 一键导入接口。
+- **Node.js**：`>= 18`（推荐 `20.x`，与 CI 保持一致）
+- **Rust 工具链**：稳定版 `>= 1.90`（`src-tauri/Cargo.toml` 使用 `edition = "2024"`）
+- **平台构建依赖**：
+  - **macOS**：Xcode Command Line Tools
+  - **Windows**：Visual Studio C++ 生成工具 & WebView2 Runtime
+  - **Linux（Ubuntu/Debian）**：`libwebkit2gtk-4.1-dev`、`libappindicator3-dev`、`librsvg2-dev`、`patchelf`、`xdg-utils`
 
-### 步骤 3：发送与调试
-1. 选择 HTTP 请求方法（GET, POST, PUT, DELETE 等）。
-2. 输入接口相对路径（如 `/api/v1/auth/login`）或完整 URL。
-3. 填写入参并按下快捷键 `Cmd + Enter` (macOS) 或 `Ctrl + Enter` (Windows) 立即执行请求。
-4. 在右侧或下方响应面板实时查看 HTTP 状态码、耗时性能、响应头及 JSON 响应体。
+### 1.2 常用开发与测试命令
 
----
-
-## 📖 核心功能教程
-
-### 2.1 目录即项目与层级级联继承
-
-JustAPI 采用三维级联继承机制（`主项目 -> 子项目 -> 具体请求`），极大地消除了重复配置：
-
-#### 1. BaseURL 级联拼接
-- **主项目级**：在项目设置中配置根 BaseURL，例如 `https://api.dev.example.com`。
-- **子项目级**：可选择「继承主项目 BaseURL」、「在主项目基础上追加子路径（如 `/user`）」或「自定义独立 BaseURL」。
-- **请求级**：若请求直接输入以 `http://` 或 `https://` 开头的完整 URL，则直接使用该 URL；若输入相对路径，则自动与上层继承的 BaseURL 拼接。
-- **界面实时预览**：在 URL 输入框下方会实时显示计算后的最终发送 URL，避免误发。
-
-#### 2. 通用 Headers 级联
-- 主项目设置中可定义全局通用请求头（如 `X-App-Client: Desktop`, `Accept-Language: zh-CN`）。
-- 子项目可直接继承全部全局 Header，并可追加该服务专属 Header。
-- 具体请求可按需重写或新增局部 Header。同名 Header 优先级为：`请求级 > 子项目级 > 主项目全局`。
-
-#### 3. 极简鉴权设计
-- JustAPI 不设繁琐且相互割裂的独立 Auth 面板。
-- 推荐直接在主项目或子项目的 Headers 中配置 `Authorization: Bearer {{token}}`，所有继承该配置的接口均会自动携带身份凭据。
-
----
-
-### 2.2 RESTful 请求与双模式编辑
-
-#### 1. 表格与纯文本双模式快速编辑 (Bulk Edit)
-在 Query Params 和 Headers 面板中，支持在两种模式间无缝切换：
-- **键值对表格模式 (Key-Value Grid)**：支持单项勾选启用/禁用、键名、键值、参数描述填写，支持行删除与快速换行。
-- **纯文本模式 (Bulk Edit)**：支持直接输入或整段粘贴多行文本（支持 `key=value` 或 `key: value` 格式）。切换回表格时将自动双向解析，适合从浏览器 DevTools 或抓包日志整段复制参数。
-
-#### 2. Headers 键值智能联想补全
-- 废除原生选择器的闪烁与裁剪缺陷，采用全独立浮层渲染。
-- 输入常用请求头键名（如 `Content-Type`, `Authorization`）时提供快速推荐并附带中文注释。
-- **选定即关**，按下回车或 Tab 键后光标将自动平滑流转聚焦到当前行 Value 输入框，带来极速键入流。
-
-#### 3. 智能 Path Variables 解析
-- 在 URL 中直接输入包含 `{param}` 或 `:param` 的路径（例如 `/users/{userId}/orders/:orderId`）。
-- JustAPI 会自动在 Params 面板中生成对应的路径参数输入行。
-- 请求发送时会自动将参数值智能替换回请求 URL。
-
----
-
-### 2.3 高性能 JSON 与响应查看
-
-#### 1. CodeMirror 6 高性能 JSON 编辑器
-- **拒绝随意篡改排版**：严格禁止在输入、失焦或粘贴时自动强行格式化用户输入的 JSON，充分尊重原始排版与换行。
-- **显式按需格式化**：编辑器工具栏提供「格式化 (Prettify)」与「单行压缩 (Minify)」按钮（支持快捷键 `Shift + Alt + F`）。
-- **Rust 原生异步引擎**：调用 Rust 后台工作线程由 `serde_json` 执行格式化与压缩，即便面对数兆大型 JSON 亦在毫秒级完成，杜绝前端界面假死，并原生保留 Snowflake 等 64 位大数精度。
-
-#### 2. 响应查看器与超大响应截断保护
-- **性能三要素**：响应栏实时显示 HTTP 状态码（根据 2xx/3xx/4xx/5xx 色彩编码）、执行耗时（毫秒级，根据性能区间智能着色）、数据体积大小。
-- **超大保护机制 (Large Response Protection)**：当返回的响应体体积大于 5MB 时，前端会自动截断渲染（仅预览前 1MB 文本内容），并给出友好提示按钮「另存为本地文件」，彻底避免 DOM 崩溃与内存溢出。
-- **响应落盘**：支持通过原生系统对话框将完整响应数据无损另存为本地文件。
-
----
-
-### 2.4 Swagger / OpenAPI 导入与一键刷新
-
-#### 1. 规范支持与一键导入
-- 支持 Swagger 2.0、OpenAPI 3.0 与 3.1 格式（支持 JSON 与 YAML）。
-- 支持直接输入远程 HTTP/HTTPS URL（例如 `http://localhost:8080/v3/api-docs`）或读取本地文件导入。
-- 自动解析提取接口方法、路径、分组 (Tags)、Summary 描述及请求体参数模板。
-
-#### 2. 来源持久化绑定
-导入成功后，系统会将数据源 URL 自动写入该子项目配置文件（`.subproject.json`）的 `swaggerSourceUrl` 字段中。
-
-#### 3. 智能无损刷新 (Smart Merge)
-当后端开发人员更新了接口定义时，只需按下全局快捷键 `Cmd + R` (macOS) 或 `Ctrl + R` (Windows)，或在子项目菜单中点击「一键刷新」：
-- **新增接口**：自动无缝拉取并追加到接口树中。
-- **已下线/删除接口**：自动打上 `[Deprecated / 已下线]` 标识，**坚决不物理删除本地文件**，防止丢失历史调试配置。
-- **已变更接口**：智能更新 Path 与参数定义，**完整无损保留**开发者已经在 JustAPI 中填写的测试参数 Value 和自定义 Header。
-
----
-
-### 2.5 环境变量与动态插值
-
-#### 1. 多套环境与层级继承
-- **项目级环境**：可在主项目设置中建立多套环境（如 `Local`, `Dev`, `Test`, `Prod`），并在顶部导航栏随时一键切换。
-- **子项目级覆盖**：子项目默认继承当前激活环境的所有变量。若子项目内定义了同名变量，以**子项目覆盖优先**。
-
-#### 2. 动态插值与来源辨识
-在 BaseURL、URL Path、Query Params、Headers 与 JSON Body 中均支持 `{{variable_name}}` 动态插值：
-- 输入栏会对匹配到的变量自动渲染彩色来源徽章（区分系统内置变量、项目全局变量、子项目覆盖变量与未定义变量）。
-
----
-
-## ⌨️ 常用全局快捷键速查表
-
-JustAPI 所有全局快捷键统一收敛在应用顶层分发，彻底消除了浏览器事件冒泡与重复触发冲突：
-
-| 快捷键 (macOS) | 快捷键 (Windows) | 功能说明 |
-| :--- | :--- | :--- |
-| `Cmd + Enter` | `Ctrl + Enter` | **发送请求 (Send)**：立即执行当前活动标签页的请求 |
-| `Cmd + S` | `Ctrl + S` | **保存请求 (Save)**：保存当前请求修改至本地文件 |
-| `Cmd + T` | `Ctrl + T` | **新建标签页 (New Tab)**：快速新建一个空请求标签页 |
-| `Cmd + W` | `Ctrl + W` | **关闭标签页 (Close Tab)**：关闭当前活动标签页 |
-| `Cmd + \` | `Ctrl + \` | **折叠/展开侧边栏 (Toggle Sidebar)**：最大化请求工作区视窗 |
-| `Cmd + R` | `Ctrl + R` | **一键刷新 Swagger**：无损刷新当前子项目的 OpenAPI 规范 |
-| `Cmd + F` | `Ctrl + F` | **快速定位搜索**：聚焦左侧边栏接口树全文检索框 |
-| `Shift + Alt + F` | `Shift + Alt + F` | **单次按需美化 JSON**：调用 Rust 原生引擎异步格式化请求 Body |
-
----
-
-## ⚡ 动态插值与内置变量规范
-
-### 1. 变量解析规则
-- 语法格式：`{{variable_name}}`
-- 读取顺序：优先检索子项目变量 -> 其次检索主项目激活环境中的同名变量。
-- 若变量未定义，界面将标红提示，便于排查笔误。
-
-### 2. 内置动态系统变量列表
-
-无需预先定义，在任意入参位置直接书写即可动态取值：
-
-| 变量名称 | 生成值示例 | 典型适用场景 |
-| :--- | :--- | :--- |
-| `{{$guid}}` 或 `{{$uuid}}` | `550e8400-e29b-41d4-a716-446655440000` | 唯一幂等请求 ID、追踪 TraceID |
-| `{{$timestamp}}` | `1741165200` | 10 位标准 Unix 秒级时间戳（接口签名校验） |
-| `{{$timestampMs}}` | `1741165200123` | 13 位毫秒级时间戳 |
-| `{{$randomInt}}` | `0 ~ 1000` 间的随机整数 | 动态测试数值、随机业务流水号 |
-
----
-
-## 🌐 网络与高级设置
-
-可在设置中心进行网络层进阶配置（基于 Rust reqwest 原生底层驱动，不受浏览器安全沙箱限制）：
-
-1. **Cookie Jar 状态管理**：
-   - 默认开启 Cookie 会话持久化，自动捕获服务端响应返回的 `Set-Cookie` 头。
-   - 后续发往同一域名的请求将自动附带匹配的 Cookie，支持手动清空指定域名下的 Cookie 缓存。
-2. **忽略 SSL 证书校验 (Insecure Skip Verify)**：
-   - 针对内网测试、本地自签名 HTTPS 证书开发场景，开启后可一键跳过 TLS 证书合法性校验，避免连接报错。
-3. **网络代理设置 (Proxy)**：
-   - 支持自定义配置本地 HTTP 或 SOCKS5 代理地址，方便配合 Charles, Fiddler 或开发抓包工具联合调试。
-
----
-
-## 🛠️ 开发者指南：环境搭建与构建打包
-
-### 环境准备
-- **Node.js**：>= 18.0.0（推荐 20+）
-- **Rust 工具链**：`rustc` & `cargo`（推荐最新 stable 版本）
-- **系统底层依赖**：
-  - **macOS**：需安装 Xcode Command Line Tools
-  - **Windows**：需安装 Microsoft Visual Studio C++ 生成工具以及 WebView2 Runtime
-
-### 本地开发运行
 ```bash
-# 1. 克隆代码仓库
-git clone https://github.com/your-username/justapi.git
-cd justapi
-
-# 2. 安装前端依赖
+# 1. 安装前端依赖
 npm install
 
-# 3. 启动开发模式 (自动编译前端、拉起 Rust 桌面窗口并启用热重载)
+# 2. 启动 Tauri 桌面端开发环境 (Vite 热重载 + Rust 原生窗口)
 npm run tauri dev
+
+# 3. 仅启动 Vite 前端开发服务 (浏览器调试界面，部分本地文件/HTTP IPC 受限)
+npm run dev
+
+# 4. 执行 TypeScript 类型校验与前端生产构建 (vue-tsc --noEmit && vite build)
+npm run build
+
+# 5. 运行前端与内置插件单元测试 (Vitest)
+npm test
+
+# 6. 运行 Rust 核心与仓储单元测试
+cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
-### 跨平台生产打包
+### 1.3 跨平台打包与 GitHub Actions 发布
+
+本地执行生产打包：
+
 ```bash
-# 自动执行前端编译与 Rust Release 优化编译
 npm run tauri build
 ```
-打包生成的可分发安装包位于 `src-tauri/target/release/bundle/`：
-- **macOS**：`.dmg` 镜像安装包与 `.app` 单体应用程序（体积约 12MB~18MB）
-- **Windows**：`.msi` 与 `.exe` (NSIS) 安装程序（已固化 WebView2 内存裁剪启动参数）
 
-### 自动化构建发布 (GitHub Actions)
-项目已内置全套自动化构建工作流 [`.github/workflows/release.yml`](.github/workflows/release.yml)：
-1. **手动触发发布 (workflow_dispatch)**：
-   - 进入 GitHub 仓库页面 -> **Actions** -> 选择 **Release** 工作流。
-   - 点击 **Run workflow**：
-     - **Tag / Release 标题**：留空默认自动使用 `tauri.conf.json` 中的版本号生成（如 `v0.1.0`）。
-     - **Draft 选项**：可选是否先发布为草稿，方便在发布前在 GitHub 页面二次核对构建产物。
-2. **Git Tag 自动发布**：
-   - 推送版本标签（如 `git tag v0.1.0 && git push origin v0.1.0`）会自动触发多平台构建并发布对应 Release。
-3. **构建产物覆盖**：
-   - **macOS (Apple Silicon)**：`.dmg` (arm64)
-   - **macOS (Intel)**：`.dmg` (x86_64)
-   - **Windows**：`.msi` 与 `.exe` (x64)
-   - **Linux**：`.AppImage` 与 `.deb` (x64)
+生成的安装包产物位于 `src-tauri/target/release/bundle/`（macOS `.dmg`/`.app`、Windows `.msi`/`.exe`、Linux `.AppImage`/`.deb`）。
 
+项目内置工作流 [`.github/workflows/release.yml`](.github/workflows/release.yml)，支持：
+- **手动触发 (`workflow_dispatch`)**：进入 GitHub **Actions -> Release -> Run workflow**，可自定义 Tag、标题与 `draft`/`prerelease` 标记。
+- **Git Tag 自动发布**：推送 `v*` 标签（如 `git tag v0.1.0 && git push origin v0.1.0`）自动并行构建 macOS（Apple Silicon `aarch64` & Intel `x86_64`）、Windows（`x64`）与 Linux（`x64`）安装包并生成 Release。
 
+---
+
+## 2. 工程架构与核心模块
+
+### 2.1 前端分层与核心机制
+
+| 目录 / 模块 | 职责说明 |
+| :--- | :--- |
+| [`src/core/inheritance/`](src/core/inheritance/resolver.ts) | `主项目 -> 子项目 -> 单请求` 三维 BaseURL 拼接与 Headers 分层解析/覆写追踪 |
+| [`src/core/interpolation/`](src/core/interpolation/engine.ts) | 可扩展动态变量引擎（`VariableEngine`），内置 `$guid`/`$uuid`/`$timestamp`/`$timestampMs`/`$randomInt` 并识别变量来源徽章 |
+| [`src/core/pipeline/`](src/core/pipeline/requestPipeline.ts) | 洋葱模型请求执行管线（[`defaultMiddlewares.ts`](src/core/pipeline/defaultMiddlewares.ts) 定义解析/合并/插值/Cookie/日志/传输阶段） |
+| [`src/core/registries/`](src/core/registries/extensionRegistry.ts) | 六类响应式扩展注册表：RequestTab、BodyEditor、ResponseTab、RequestImporter、RequestExporter、CollectionImporter |
+| [`src/core/plugins/`](src/core/plugins/pluginHost.ts) | `ExternalPluginHost`：扫描多作用域插件、加载 ESM/CSS、维护生命周期清理、`project.json` 启停持久化 |
+| [`src/core/commands/`](src/core/commands/commandRegistry.ts) | 统一全局命令与快捷键分发中心（`Cmd/Ctrl + Enter/S/T/W/\/R/F` 等） |
+| [`src/core/shortcuts/`](src/core/shortcuts/escapeStack.ts) | 分层 `Esc` 取消栈（按 `OVERLAY > MODAL > DROPDOWN` 优先关闭最顶层活动浮层） |
+| `src/composables/` | Vue 组合式封装（[`useEscapeCancel.ts`](src/composables/useEscapeCancel.ts)、[`useTheme.ts`](src/composables/useTheme.ts)） |
+| `src/services/` & `src/stores/` | 类型化 Tauri IPC 封装与 Pinia 状态仓库（`appStore`、`sessionStore`、`workspaceStore`） |
+
+### 2.2 Rust 原生核心与 Tauri 命令
+
+- `commands/`（注册见 [`src-tauri/src/lib.rs`](src-tauri/src/lib.rs)）：暴露 HTTP 请求/取消、文件对话框与响应落盘、本地项目与子项目/请求/历史读写、通用集合导入解析与合并、JSON 格式化/压缩、外置插件管理命令。
+- [`transport/`](src-tauri/src/transport/mod.rs)：基于 `reqwest` 封装 HTTP 客户端池（区分 SSL 禁用与代理配置），支持中断正在进行的请求，并缓存最近 20 条 / 总上限 64 MB 响应原始字节以便无损另存为文件。
+- [`repository/`](src-tauri/src/repository/mod.rs)：实现 `Folder-as-Project` 文件协议读写、`safe_join_rel` 路径越界拦截、自动维护 `.gitignore` 中的 `history.json` 及历史上限（200 条）裁剪。
+- [`importer/`](src-tauri/src/importer/merge.rs)：提供通用文档源读取（`http(s)://` URL 或本地路径）、JSON/YAML 结构解析、以及无损增量集合合并（保留已有测试参数与 `extensions`）。
+- [`plugins/`](src-tauri/src/plugins/mod.rs)：实现多作用域插件扫描、内嵌官方插件读取、路径逃逸防护、示例脚手架生成与安全删除。
+
+---
+
+## 3. 外置插件系统设计（API v1）
+
+### 3.1 作用域、优先级与状态持久化
+
+JustAPI 在每次打开/切换项目或触发重载时按以下三个作用域扫描外置插件：
+
+1. **项目级 (`project`)**：`<项目根目录>/.justapi/plugins/<plugin-dir>/`（最高优先级，可随 Git 分发）
+2. **全局级 (`global`)**：`~/.justapi/plugins/<plugin-dir>/`（Windows 为 `%USERPROFILE%\.justapi\plugins\`）
+3. **内置级 (`bundled`)**：随二进制编译内嵌的 3 个官方插件（开发模式 `npm run tauri dev` 下优先直接读取仓库根 `.justapi/plugins/` 源码）
+
+**覆盖与启停规则**：
+- **同名 ID 覆盖**：不同作用域存在相同 `manifest.id` 时，仅激活高优先级插件（`project > global > bundled`），低优先级插件会显示为 `overridden`；若高优先级版本被禁用，则自动恢复下一优先级可用版本。
+- **同作用域去重**：同一插件根目录内若有两个子目录声明了相同 `id`，后者会被标记为 `error`。
+- **启停状态持久化**：禁用的插件键名（格式 `<scope>:<id>`）写入当前项目的 `.justapi/project.json` 的 `disabledPlugins` 字段；未打开项目时暂存浏览器 `localStorage`。
+- **移除保护**：内置插件不可移除（仅可禁用）；项目级/全局级外置插件可在「插件管理」UI 中移除，删除前执行路径边界与软链接校验并清理 `disabledPlugins` 记录。
+
+### 3.2 manifest.json 规范与安全校验
+
+每个外置插件目录必须包含 `manifest.json` 与入口脚本（`index.mjs` 等），目录名不能以 `.` 开头或命名为 `node_modules`。
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+| :--- | :--- | :---: | :--- | :--- |
+| `id` | `string` | 是 | - | 插件唯一标识，建议使用反向域名命名空间（如 `acme.hmac-auth`） |
+| `name` | `string` | 是 | - | 插件展示名称 |
+| `version` | `string` | 是 | - | 插件版本号（如 `1.0.0`） |
+| `entry` | `string` | 否 | `"index.mjs"` | 相对插件目录的 ES Module 入口文件（仅允许 `.mjs` / `.js`） |
+| `style` | `string` | 否 | `undefined` | 可选样式文件（仅允许 `.css`），启用时注入 `<style data-justapi-plugin="...">` |
+| `description` | `string` | 否 | `undefined` | 插件简介，展示于插件管理列表 |
+| `author` | `string` | 否 | `undefined` | 作者名称 |
+| `minApiVersion` | `number` | 否 | `1` | 要求宿主插件 API 最低版本（当前 `EXTERNAL_PLUGIN_API_VERSION = 1`） |
+
+**安全与资源限制**（[`src-tauri/src/plugins/mod.rs`](src-tauri/src/plugins/mod.rs#L155-L516)）：
+- 入口脚本与样式路径必须为相对路径，禁止 `..` 目录穿越与绝对路径；Rust 端会先 `canonicalize()` 并校验目标文件仍在当前插件目录内，防止软链接逃逸。
+- 单文件体积限制：入口脚本不超过 `5 MB`，样式文件不超过 `2 MB`。
+
+### 3.3 生命周期与保留标识约束
+
+- **导出规范**：入口脚本支持具名导出 `export function activate(ctx)`、`export function deactivate()`，或通过 `export default` 导出激活函数 / `{ activate, deactivate }` 对象（支持异步 `async`）。
+- **自动卸载清理**：通过 `ctx.register*` / `ctx.useMiddleware` 返回的所有清理函数，以及注入的 CSS 样式标签，均由宿主统一跟踪；插件禁用、热重载或移除时先调用可选 `deactivate()`，再按注册逆序自动清理所有已注册扩展与样式标签。
+- **激活失败回滚**：若 `activate(ctx)` 抛错，宿主会立即反向回滚该插件已注册的所有扩展与样式，防止脏状态残留。
+- **核心保留标识禁用**：
+  - 禁止注册前缀 `core.`、`builtin.` 的任何 ID。
+  - Request/Response Tab 保留 ID：`headers`、`params`、`body`、`cookies`。
+  - BodyEditor 保留 ID：`none`、`json`、`form-data`、`x-www-form-urlencoded`、`raw`。
+
+---
+
+## 4. JustAPIPluginContext API 参考与实战
+
+完整 TypeScript 定义见 [`src/core/plugins/types.ts`](src/core/plugins/types.ts#L71-L96)。
+
+### 4.1 上下文辅助属性与方法
+
+| 成员 | 说明 |
+| :--- | :--- |
+| `pluginId` / `pluginDirName` / `scope` / `apiVersion` | 当前插件元信息（当前 `apiVersion` 为 `1`） |
+| `vue` | 宿主共享的 Vue 3 运行时，供零构建插件直接调用 `defineComponent`、`h`、`computed`、`ref` 等 |
+| `getActiveRequest()` | 获取当前活动标签页的 `ApiRequest` 对象 |
+| `getRequestExtension<T>(key)` / `setRequestExtension<T>(key, value)` | 读写当前请求的 `request.extensions[key]`，随请求 JSON 一并保存持久化 |
+| `getLastResponse()` | 获取当前标签页最近一次响应 `ApiResponse \| null` |
+| `getLastExecutionContext()` | 获取最近一次执行完成后的完整管线上下文 `RequestExecutionContext \| null` |
+| `showToast(message, isError?)` | 触发桌面底部全局提示通知 |
+| `importParsedRequest(request)` | 将解析生成的 `ApiRequest` 作为新标签页打开 |
+| `createEmptyRequest(overrides?)` | 基于核心模型工厂创建合法的默认请求对象 |
+
+### 4.2 注册动态变量与全局命令
+
+```js
+export function activate(ctx) {
+  // 注册自定义动态变量 {{$nonce}}
+  ctx.registerVariableProvider({
+    name: '$nonce',
+    description: '8 位随机字母数字串',
+    evaluate: () => Math.random().toString(36).slice(2, 10)
+  })
+
+  // 注册命令与快捷键 (Cmd/Ctrl + Shift + K)
+  ctx.registerCommand({
+    id: 'acme.quick-ping',
+    title: '输出当前请求路径',
+    shortcut: { key: 'k', mod: true, shift: true },
+    run: () => {
+      const req = ctx.getActiveRequest()
+      ctx.showToast(`当前请求: ${req.method} ${req.path}`)
+    }
+  })
+}
+```
+
+### 4.3 洋葱模型请求中间件
+
+JustAPI 核心请求管线 [`defaultMiddlewares.ts`](src/core/pipeline/defaultMiddlewares.ts) 的默认执行阶段顺序如下：
+
+| `order` | 核心阶段 | 说明 |
+| :---: | :--- | :--- |
+| `100` | `core.resolve-url` | 解析项目/子项目变量 `varMap` 并计算拼接与插值后的 `finalUrl` |
+| `200` | `core.merge-headers` | 合并主/子项目与单请求 Headers 并完成插值，产出 `finalHeaders` |
+| `300` | `core.interpolate-body` | 对 JSON / Raw 请求体或 Form 字段插值，产出 `finalBody` / `finalFormFields` |
+| `400` | `core.cookie-jar` | 自动注入匹配的 Cookie |
+| `900` | `core.console-logger` | 在 `await next()` 返回后向控制台输出请求/响应摘要 |
+| `1000` | `core.transport` | 执行 HTTP 请求并写入 `execCtx.response` |
+
+插件可通过 `ctx.useMiddleware({ id, order, execute })` 在任意阶段前后切入（如在 `order: 250` 签名并追加请求头，或在 `await next()` 之后读取 `execCtx.response` 并写入 `execCtx.metadata`）：
+
+```js
+ctx.useMiddleware({
+  id: 'acme.hmac-signer',
+  order: 350, // 在请求头合并与 Body 插值完成之后、发送之前执行
+  description: '附加请求签名头与耗时标记',
+  async execute(execCtx, next) {
+    execCtx.finalHeaders.push(['X-Request-Nonce', crypto.randomUUID()])
+    const start = performance.now()
+    await next()
+    execCtx.metadata['acme.hmac-signer'] = {
+      totalPipelineMs: Math.round(performance.now() - start),
+      status: execCtx.response?.status
+    }
+  }
+})
+```
+
+### 4.4 注册请求 / 响应 Tab 与样式（零构建 UI）
+
+外置插件无需引入 Vite/Webpack 打包工具，可直接使用宿主注入的 `ctx.vue`（`h`、`defineComponent`、`computed`）渲染轻量交互界面，并在 `manifest.json` 中通过 `"style": "style.css"` 附带样式：
+
+```js
+export function activate(ctx) {
+  const { defineComponent, computed, h } = ctx.vue
+
+  const NoteTab = defineComponent({
+    name: 'AcmeRequestNoteTab',
+    setup() {
+      const note = computed(() => ctx.getRequestExtension('acmeNote') || '')
+      return () =>
+        h('div', { class: 'acme-note-wrap' }, [
+          h('textarea', {
+            value: note.value,
+            placeholder: '填写接口备注（保存于 request.extensions.acmeNote）',
+            onInput: e => ctx.setRequestExtension('acmeNote', e.target.value)
+          })
+        ])
+    }
+  })
+
+  ctx.registerRequestTab({
+    id: 'acme.note',
+    order: 60,
+    label: '备注',
+    component: NoteTab,
+    badgeCount: ({ request }) => (request.extensions?.acmeNote ? 1 : 0)
+  })
+
+  ctx.registerResponseTab({
+    id: 'acme.meta',
+    order: 60,
+    label: '扩展指标',
+    component: defineComponent({
+      setup() {
+        return () => {
+          const execCtx = ctx.getLastExecutionContext()
+          return h('pre', { style: 'padding:12px;font-size:11px;' }, JSON.stringify(execCtx?.metadata || {}, null, 2))
+        }
+      }
+    }),
+    badgeText: (_res, execCtx) => execCtx?.metadata?.['acme.hmac-signer'] ? 'SIGNED' : undefined
+  })
+}
+```
+
+### 4.5 注册自定义 Body 编辑器与请求导入/导出器
+
+- **Body 编辑器**：`ctx.registerBodyEditor({ id, order, label, component })`，选中后会自动将当前请求的 `bodyType` 设为该 `id`，由中间件或请求发送逻辑读取 `bodyContent`。
+- **请求导入器 (`registerRequestImporter`)**：在 UrlBar 点击「导入」时出现；当 `supports(rawInput)` 返回 `true` 时支持自动识别，由 `parse(rawInput)` 返回标准 `ApiRequest`（可使用 `ctx.createEmptyRequest(...)` 构造）。
+- **请求导出器 (`registerRequestExporter`)**：只有一个导出器时直接展示按钮，多个时收拢为下拉菜单；`exportRequest({ request, resolvedUrl, headers, body })` 返回导出文本并自动复制到剪贴板。
+
+### 4.6 注册接口集合导入器（Collection Importer）
+
+集合导入弹窗（侧边栏文档导入）以及 `Cmd/Ctrl + R` 集合刷新由 `registerCollectionImporter` 驱动。Rust 内核统一负责 HTTP/本地文件拉取（`read_import_source`）、YAML/JSON 文本结构解析（`parse_structured_document`）及无损增量合并（`merge_and_save_collection`），插件仅需实现格式识别与规范映射：
+
+```js
+ctx.registerCollectionImporter({
+  id: 'acme.custom-spec',
+  order: 20,
+  label: 'Custom API Spec (JSON / YAML)',
+  shortLabel: 'Custom',
+  description: '导入自定义团队接口描述文档',
+  sourcePlaceholder: 'https://example.com/api-spec.yaml 或本地文件路径',
+  supportsRefresh: true,
+  supports: (rawText, source) =>
+    rawText.includes('"customSpecVersion"') || (source || '').endsWith('.spec.yaml'),
+  async parse(rawText, helpers) {
+    // 复用 Rust serde_json / serde_yaml 高性能解析 JSON 与 YAML
+    const doc = await helpers.parseStructuredDocument(rawText)
+    return {
+      title: doc.title || 'Custom API',
+      baseUrl: doc.baseUrl,
+      sourceFormat: 'custom-spec',
+      requests: (doc.endpoints || []).map(ep =>
+        ctx.createEmptyRequest({
+          id: `${ep.method}_${ep.path}`,
+          name: ep.name || ep.path,
+          method: ep.method.toUpperCase(),
+          path: ep.path,
+          group: ep.tag
+        })
+      )
+    }
+  }
+})
+```
+
+---
+
+## 5. 官方内置插件参考与本地调试
+
+仓库内嵌的 3 个标准插件即是最完整的参考样例：
+- **[`.justapi/plugins/assertions/`](.justapi/plugins/assertions/index.mjs)**：演示请求扩展数据结构持久化（`extensions.assertions`）、洋葱中间件后置断言评估、请求 Tab 规则编辑器、响应 Tab 校验报告以及自定义 `style.css`。
+- **[`.justapi/plugins/curl/`](.justapi/plugins/curl/index.mjs)**：演示纯 JS POSIX Shell 分词器、请求导入器（`registerRequestImporter`）与请求导出器（`registerRequestExporter`）。
+- **[`.justapi/plugins/swagger/`](.justapi/plugins/swagger/index.mjs)**：演示集合导入器（`registerCollectionImporter`）借助 `helpers.parseStructuredDocument` 解析 JSON/YAML 版 Swagger/OpenAPI 文档与启用 `supportsRefresh` 无损刷新。
+
+**本地快速调试流程**：
+1. 打开应用右上角「**插件**」弹窗，在「项目级插件目录」或「全局插件目录」卡片中点击「**生成示例插件**」可立刻生成完整脚手架 `example-request-tagger`。
+2. 编辑该目录中的 `manifest.json`、`index.mjs` 或 `style.css` 后，点击弹窗右上角「**刷新重载**」即可热卸载旧版并立即激活最新代码。
+3. 若插件出现激活报错或清单校验异常，错误堆栈与提示会直接展示在对应插件卡片下方及开发者控制台（DevTools Console）。

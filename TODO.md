@@ -35,7 +35,5 @@
 
 ## 🔮 未来待办规划 (Backlog)
 
-- [ ] **cURL 导入与导出**：支持一键将当前请求导出为 cURL 命令，或从剪贴板解析 cURL 快速生成请求
-- [ ] **轻量断言与测试 (Simple Assertions)**：提供状态码、响应耗时、JSON 路径值的快速断言校验
 - [ ] **接口文档轻量导出**：支持将子项目接口导出为 Markdown 或 HTML 格式文档
 - [ ] **第三方集合迁移**：支持导入 Postman Collection / Insomnia 导出文件

@@ -1,0 +1,10 @@
+{
+  "id": "justapi.curl",
+  "name": "cURL 导入与导出",
+  "version": "1.0.0",
+  "description": "支持粘贴 cURL 命令解析为请求参数（Header / Query / JSON / Form / Basic Auth），以及将当前请求导出为 POSIX cURL 命令。",
+  "author": "JustAPI",
+  "entry": "index.mjs",
+  "minApiVersion": 1
+}
+

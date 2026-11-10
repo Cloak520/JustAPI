@@ -1,7 +1,6 @@
 <template>
   <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
     <div class="flex flex-col w-full max-w-2xl h-[560px] bg-card border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-      <!-- 模态框顶部标题 -->
       <div class="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/40 shrink-0">
         <div class="flex items-center space-x-2">
           <div class="w-6 h-6 rounded-md bg-primary/20 text-primary flex items-center justify-center">
@@ -17,7 +16,6 @@
         </button>
       </div>
 
-      <!-- 选项卡导航 (基本与BaseURL, 环境变量, Headers) -->
       <div class="flex items-center space-x-1 px-4 pt-2 border-b border-border bg-muted/10 shrink-0 text-xs">
         <button
           @click="activeTab = 'general'"
@@ -54,9 +52,7 @@
         </button>
       </div>
 
-      <!-- 选项卡主体内容 -->
       <div class="flex-1 overflow-y-auto p-5">
-        <!-- 1. 基础与 BaseURL -->
         <div v-if="activeTab === 'general'" class="space-y-4">
           <div class="space-y-1.5">
             <label class="text-xs font-medium text-foreground">子项目显示名称</label>
@@ -83,26 +79,25 @@
 
             <div class="space-y-1.5">
               <input
+                ref="baseUrlInputRef"
                 v-model="localConfig.baseUrl"
                 type="text"
                 :placeholder="localConfig.inheritBaseUrl ? '相对子路径 (如 /api/v1/auth)' : '独立 BaseURL (如 https://auth.api.com)'"
                 class="w-full text-xs font-mono px-3 py-2 rounded-lg bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <p class="text-[11px] text-muted-foreground">
-                主项目根 BaseURL: <code class="font-mono bg-muted px-1 py-0.2 rounded text-[10px]">{{ projectStore.projectConfig?.baseUrl || '无' }}</code>
+                主项目根 BaseURL: <code class="font-mono bg-muted px-1 py-0.2 rounded text-[10px]">{{ workspaceStore.projectConfig?.baseUrl || '无' }}</code>
               </p>
             </div>
           </div>
         </div>
 
-        <!-- 2. 环境变量与覆盖 -->
         <div v-else-if="activeTab === 'variables'" class="space-y-4">
-          <!-- 继承开关 -->
           <div class="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border">
             <div>
               <div class="text-xs font-medium text-foreground">继承主项目环境变量</div>
               <div class="text-[11px] text-muted-foreground">
-                当前激活环境: <span class="font-semibold text-emerald-400">{{ projectStore.activeEnvironment?.name || '无激活环境' }}</span>
+                当前激活环境: <span class="font-semibold text-emerald-400">{{ workspaceStore.activeEnvironment?.name || '无激活环境' }}</span>
               </div>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
@@ -115,7 +110,6 @@
             </label>
           </div>
 
-          <!-- 子项目专属变量或重写 -->
           <div class="space-y-2">
             <div class="flex items-center justify-between text-xs text-muted-foreground pb-1 border-b border-border/60">
               <span>子项目覆盖/专属变量</span>
@@ -141,7 +135,6 @@
                     placeholder="变量名 (如 token)"
                     class="w-full text-xs font-mono px-2.5 py-1.5 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary"
                   />
-                  <!-- 覆盖指示标记 -->
                   <span
                     v-if="isOverridingProjectVar(row.key)"
                     class="absolute -top-2 right-1 text-[9px] px-1 bg-amber-500/20 text-amber-400 rounded border border-amber-500/30 select-none"
@@ -174,7 +167,6 @@
           </div>
         </div>
 
-        <!-- 3. Headers -->
         <div v-else-if="activeTab === 'headers'" class="space-y-4">
           <div class="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border">
             <div>
@@ -221,6 +213,7 @@
                     v-model="h.key"
                     placeholder="Header 键名 (如 Authorization)"
                     :suggestions="COMMON_HEADER_SUGGESTIONS"
+                    :sub-project-dir="props.dirName"
                     input-class="w-full text-xs font-mono px-2.5 py-1.5 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
@@ -229,6 +222,7 @@
                     v-model="h.value"
                     placeholder="Header 值"
                     :suggestions="getHeaderValueSuggestions(h.key)"
+                    :sub-project-dir="props.dirName"
                     input-class="w-full text-xs font-mono px-2.5 py-1.5 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
@@ -249,7 +243,6 @@
         </div>
       </div>
 
-      <!-- 模态框底部 -->
       <div class="flex items-center justify-end space-x-2 px-5 py-3 border-t border-border bg-muted/40 shrink-0">
         <button
           @click="close"
@@ -269,15 +262,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { X, Settings2, Plus, Trash2 } from 'lucide-vue-next'
-import { useProjectStore } from '@/stores/projectStore'
-import type { SubProjectConfig, KeyValuePair } from '@/types'
+import { computed, ref, watch } from 'vue'
+import { Plus, Settings2, Trash2, X } from 'lucide-vue-next'
 import AutocompleteInput from '@/components/common/AutocompleteInput.vue'
-import {
-  COMMON_HEADER_SUGGESTIONS,
-  getHeaderValueSuggestions
-} from '@/utils/headers'
+import { useEscapeCancel } from '@/composables/useEscapeCancel'
+import { useVariableInput } from '@/composables/useVariableAutocomplete'
+import { structuredCloneSafe } from '@/core/models/requestFactory'
+import { useAppStore } from '@/stores/appStore'
+import { useWorkspaceStore } from '@/stores/workspaceStore'
+import type { KeyValuePair, SubProjectConfig } from '@/types'
+import { COMMON_HEADER_SUGGESTIONS, getHeaderValueSuggestions } from '@/utils/headers'
 
 const props = defineProps<{
   modelValue: boolean
@@ -290,15 +284,22 @@ const emit = defineEmits<{
 
 const isOpen = computed({
   get: () => props.modelValue,
-  set: (v) => emit('update:modelValue', v)
+  set: v => emit('update:modelValue', v)
 })
 
-const projectStore = useProjectStore()
+const workspaceStore = useWorkspaceStore()
+const appStore = useAppStore()
 const activeTab = ref<'general' | 'variables' | 'headers'>('general')
+const baseUrlInputRef = ref<HTMLInputElement | null>(null)
 
-const targetSub = computed(() => {
-  return projectStore.subProjects.find(s => s.dir_name === props.dirName)
+useVariableInput(baseUrlInputRef, {
+  subProjectDir: () => props.dirName,
+  onApplied: nextVal => {
+    localConfig.value.baseUrl = nextVal
+  }
 })
+
+const targetSub = computed(() => workspaceStore.findSubProject(props.dirName))
 
 const localConfig = ref<SubProjectConfig>({
   id: '',
@@ -317,17 +318,25 @@ interface VariableRow {
 }
 const variableRows = ref<VariableRow[]>([])
 
-watch(() => props.modelValue, (open) => {
-  if (open && targetSub.value) {
-    localConfig.value = JSON.parse(JSON.stringify(targetSub.value.config))
-    variableRows.value = Object.entries(localConfig.value.variables || {}).map(([key, value]) => ({ key, value }))
-    activeTab.value = 'general'
+watch(
+  () => props.modelValue,
+  open => {
+    if (open && targetSub.value) {
+      localConfig.value = structuredCloneSafe(targetSub.value.config)
+      variableRows.value = Object.entries(localConfig.value.variables || {}).map(
+        ([key, value]) => ({ key, value })
+      )
+      activeTab.value = 'general'
+    }
   }
-})
+)
 
 function isOverridingProjectVar(key: string): boolean {
-  if (!key.trim() || !projectStore.activeEnvironment?.variables) return false
-  return Object.prototype.hasOwnProperty.call(projectStore.activeEnvironment.variables, key.trim())
+  if (!key.trim() || !workspaceStore.activeEnvironment?.variables) return false
+  return Object.prototype.hasOwnProperty.call(
+    workspaceStore.activeEnvironment.variables,
+    key.trim()
+  )
 }
 
 function addVariableRow() {
@@ -348,9 +357,16 @@ function addHeaderRow() {
   localConfig.value.headers.push(newHeader)
 }
 
+const saving = ref(false)
+
 function close() {
   isOpen.value = false
 }
+
+useEscapeCancel(isOpen, () => {
+  if (saving.value) return
+  close()
+})
 
 async function saveConfig() {
   const map: Record<string, string> = {}
@@ -361,8 +377,15 @@ async function saveConfig() {
   }
   localConfig.value.variables = map
 
-  await projectStore.updateSubProjectConfig(props.dirName, localConfig.value)
-  close()
+  saving.value = true
+  try {
+    await workspaceStore.updateSubProjectConfig(props.dirName, localConfig.value)
+    appStore.showToast(`子项目 [${localConfig.value.name || props.dirName}] 配置已保存`)
+    close()
+  } catch (err: any) {
+    appStore.showToast(`保存子项目配置失败: ${err?.message || err}`, true)
+  } finally {
+    saving.value = false
+  }
 }
 </script>
-

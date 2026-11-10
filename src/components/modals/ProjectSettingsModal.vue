@@ -1,7 +1,6 @@
 <template>
   <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
     <div class="flex flex-col w-full max-w-2xl h-[560px] bg-card border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-      <!-- 模态框顶部标题 -->
       <div class="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/40 shrink-0 select-none">
         <div class="flex items-center space-x-2">
           <div class="w-6 h-6 rounded-md bg-primary/20 text-primary flex items-center justify-center">
@@ -17,7 +16,6 @@
         </button>
       </div>
 
-      <!-- 选项卡导航 (基础与 BaseURL / 全局 Headers) -->
       <div class="flex items-center justify-between px-4 pt-2 border-b border-border bg-muted/10 shrink-0 text-xs select-none">
         <div class="flex items-center space-x-1">
           <button
@@ -42,7 +40,6 @@
           </button>
         </div>
 
-        <!-- Headers 模式切换 (表格 vs 文本模式) -->
         <div v-if="activeTab === 'headers'" class="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border text-[11px] mb-1">
           <button
             @click="headersMode = 'grid'"
@@ -61,19 +58,15 @@
         </div>
       </div>
 
-      <!-- 选项卡主体内容 -->
       <div class="flex-1 overflow-y-auto p-5">
-        <!-- 1. 基础与 BaseURL -->
         <div v-if="activeTab === 'general'" class="space-y-4">
-          <!-- 本地项目路径 (只读展示) -->
           <div class="space-y-1">
             <label class="text-xs font-medium text-foreground">本地项目路径</label>
             <div class="px-2.5 py-1.5 rounded-lg bg-muted/60 border border-border text-[11px] font-mono text-muted-foreground truncate select-all">
-              {{ projectStore.projectPath || '未打开项目' }}
+              {{ workspaceStore.projectPath || '未打开项目' }}
             </div>
           </div>
 
-          <!-- 项目名称 -->
           <div class="space-y-1">
             <label class="text-xs font-medium text-foreground">项目名称 (name)</label>
             <input
@@ -84,13 +77,13 @@
             />
           </div>
 
-          <!-- 主目录根 BaseURL -->
           <div class="space-y-1 pt-2 border-t border-border/60">
             <div class="flex items-center justify-between">
               <label class="text-xs font-medium text-foreground">主目录根 BaseURL</label>
               <span class="text-[10px] text-muted-foreground font-mono">.justapi/project.json</span>
             </div>
             <input
+              ref="baseUrlInputRef"
               v-model="localBaseUrl"
               type="text"
               placeholder="https://api.example.com"
@@ -102,9 +95,7 @@
           </div>
         </div>
 
-        <!-- 2. 全局 Headers -->
         <div v-else-if="activeTab === 'headers'" class="space-y-4">
-          <!-- 说明提示 Banner -->
           <div class="p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs space-y-1 text-foreground/90">
             <div class="font-medium flex items-center space-x-1.5 text-primary">
               <Sliders class="w-3.5 h-3.5" />
@@ -116,16 +107,15 @@
             </p>
           </div>
 
-          <!-- 文本模式模式 -->
           <div v-if="headersMode === 'bulk'" class="space-y-2">
             <BulkTextEditor
               :items="localHeaders"
               format="colon"
-              @update:items="val => localHeaders = val"
+              :sub-project-dir="null"
+              @update:items="val => (localHeaders = val)"
             />
           </div>
 
-          <!-- 表格模式 -->
           <div v-else class="space-y-2">
             <div class="flex items-center justify-between text-xs text-muted-foreground pb-1 border-b border-border/60">
               <div class="flex items-center space-x-2">
@@ -158,6 +148,7 @@
                     v-model="h.key"
                     placeholder="Header 键名 (如 Authorization, X-Token)"
                     :suggestions="COMMON_HEADER_SUGGESTIONS"
+                    :sub-project-dir="null"
                     input-class="w-full text-xs font-mono px-2.5 py-1.5 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
@@ -166,6 +157,7 @@
                     v-model="h.value"
                     placeholder="Header 键值 (支持 {{token}})"
                     :suggestions="getHeaderValueSuggestions(h.key)"
+                    :sub-project-dir="null"
                     input-class="w-full text-xs font-mono px-2.5 py-1.5 rounded bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
@@ -199,7 +191,6 @@
         </div>
       </div>
 
-      <!-- 底部操作栏 -->
       <div class="flex items-center justify-end space-x-2 px-5 py-3 border-t border-border bg-muted/30 shrink-0">
         <button
           @click="close"
@@ -222,15 +213,16 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { FolderCog, X, Save, Plus, Trash2, Sliders } from 'lucide-vue-next'
-import { useProjectStore } from '@/stores/projectStore'
-import type { KeyValuePair } from '@/types'
-import BulkTextEditor from '@/components/request/BulkTextEditor.vue'
+import { FolderCog, Plus, Save, Sliders, Trash2, X } from 'lucide-vue-next'
 import AutocompleteInput from '@/components/common/AutocompleteInput.vue'
-import {
-  COMMON_HEADER_SUGGESTIONS,
-  getHeaderValueSuggestions
-} from '@/utils/headers'
+import BulkTextEditor from '@/components/request/BulkTextEditor.vue'
+import { useEscapeCancel } from '@/composables/useEscapeCancel'
+import { useVariableInput } from '@/composables/useVariableAutocomplete'
+import { structuredCloneSafe } from '@/core/models/requestFactory'
+import { useAppStore } from '@/stores/appStore'
+import { useWorkspaceStore } from '@/stores/workspaceStore'
+import type { KeyValuePair } from '@/types'
+import { COMMON_HEADER_SUGGESTIONS, getHeaderValueSuggestions } from '@/utils/headers'
 
 const props = defineProps<{
   modelValue: boolean
@@ -241,7 +233,8 @@ const emit = defineEmits<{
   (e: 'saved'): void
 }>()
 
-const projectStore = useProjectStore()
+const workspaceStore = useWorkspaceStore()
+const appStore = useAppStore()
 
 const isOpen = ref(props.modelValue)
 const saving = ref(false)
@@ -251,15 +244,26 @@ const headersMode = ref<'grid' | 'bulk'>('grid')
 const localName = ref('')
 const localBaseUrl = ref('')
 const localHeaders = ref<KeyValuePair[]>([])
+const baseUrlInputRef = ref<HTMLInputElement | null>(null)
 
-watch(() => props.modelValue, (val) => {
-  isOpen.value = val
-  if (val && projectStore.projectConfig) {
-    localName.value = projectStore.projectConfig.name || ''
-    localBaseUrl.value = projectStore.projectConfig.baseUrl || ''
-    localHeaders.value = JSON.parse(JSON.stringify(projectStore.projectConfig.headers || []))
+useVariableInput(baseUrlInputRef, {
+  subProjectDir: () => null,
+  onApplied: nextVal => {
+    localBaseUrl.value = nextVal
   }
 })
+
+watch(
+  () => props.modelValue,
+  val => {
+    isOpen.value = val
+    if (val && workspaceStore.projectConfig) {
+      localName.value = workspaceStore.projectConfig.name || ''
+      localBaseUrl.value = workspaceStore.projectConfig.baseUrl || ''
+      localHeaders.value = structuredCloneSafe(workspaceStore.projectConfig.headers || [])
+    }
+  }
+)
 
 function addHeaderRow() {
   localHeaders.value.push({
@@ -276,18 +280,23 @@ function close() {
   emit('update:modelValue', false)
 }
 
+useEscapeCancel(isOpen, () => {
+  if (saving.value) return
+  close()
+})
+
 async function saveAndClose() {
-  if (!projectStore.projectConfig) return
+  if (!workspaceStore.projectConfig) return
   saving.value = true
   try {
-    projectStore.projectConfig.name = localName.value.trim() || 'My API Project'
-    projectStore.projectConfig.headers = localHeaders.value.filter(h => h.key.trim() !== '')
-    await projectStore.updateBaseUrl(localBaseUrl.value.trim())
-    await projectStore.saveProjectConfig()
+    workspaceStore.projectConfig.name = localName.value.trim() || 'My API Project'
+    workspaceStore.projectConfig.baseUrl = localBaseUrl.value.trim()
+    workspaceStore.projectConfig.headers = localHeaders.value.filter(h => h.key.trim() !== '')
+    await workspaceStore.saveProjectConfig()
     emit('saved')
     close()
   } catch (err: any) {
-    console.error('Failed to save project settings', err)
+    appStore.showToast(`保存项目配置失败: ${err?.message || err}`, true)
   } finally {
     saving.value = false
   }

@@ -1,0 +1,11 @@
+{
+  "id": "justapi.assertions",
+  "name": "响应断言校验 (Assertions)",
+  "version": "1.0.0",
+  "description": "提供请求级响应断言编辑器与响应校验报告面板，支持 Status、耗时、Header、JSONPath 与响应体校验，规则保存在 extensions.assertions 中。",
+  "author": "JustAPI",
+  "entry": "index.mjs",
+  "style": "style.css",
+  "minApiVersion": 1
+}
+

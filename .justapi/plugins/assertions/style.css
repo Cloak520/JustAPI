@@ -1,0 +1,306 @@
+.ja-assert-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 10px;
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.ja-assert-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid hsl(var(--border) / 0.6);
+  color: hsl(var(--muted-foreground));
+}
+
+.ja-assert-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ja-assert-title {
+  font-weight: 500;
+  color: hsl(var(--foreground));
+}
+
+.ja-assert-hint {
+  font-size: 10px;
+  opacity: 0.75;
+}
+
+.ja-assert-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ja-assert-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  background: hsl(var(--muted) / 0.65);
+  color: hsl(var(--foreground) / 0.85);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.ja-assert-btn:hover {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
+.ja-assert-btn-primary {
+  background: hsl(var(--primary) / 0.15);
+  color: hsl(var(--primary));
+  font-weight: 500;
+}
+
+.ja-assert-btn-primary:hover {
+  background: hsl(var(--primary) / 0.25);
+  color: hsl(var(--primary));
+}
+
+.ja-assert-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 4px;
+}
+
+.ja-assert-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 8px;
+  background: hsl(var(--card) / 0.5);
+  border: 1px solid hsl(var(--border) / 0.7);
+}
+
+.ja-assert-checkbox {
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: hsl(var(--primary));
+}
+
+.ja-assert-control {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--foreground));
+  font-size: 11px;
+  outline: none;
+}
+
+.ja-assert-control:focus {
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 1px hsl(var(--primary));
+}
+
+.ja-assert-select-target {
+  width: 128px;
+  flex-shrink: 0;
+}
+
+.ja-assert-input-prop {
+  width: 176px;
+  flex-shrink: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.ja-assert-select-op {
+  width: 112px;
+  flex-shrink: 0;
+}
+
+.ja-assert-input-expected {
+  flex: 1;
+  min-width: 100px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.ja-assert-exists-note {
+  flex: 1;
+  padding: 0 8px;
+  font-size: 11px;
+  font-style: italic;
+  color: hsl(var(--muted-foreground));
+}
+
+.ja-assert-del-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 6px;
+  color: hsl(var(--muted-foreground) / 0.7);
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.45;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.ja-assert-row:hover .ja-assert-del-btn {
+  opacity: 1;
+}
+
+.ja-assert-del-btn:hover {
+  color: hsl(var(--destructive));
+  background: hsl(var(--destructive) / 0.12);
+}
+
+.ja-assert-empty {
+  padding: 32px 16px;
+  border-radius: 8px;
+  border: 1px dashed hsl(var(--border) / 0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 8px;
+  color: hsl(var(--muted-foreground) / 0.75);
+}
+
+.ja-assert-resp-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 8px;
+  user-select: none;
+  color: hsl(var(--muted-foreground) / 0.7);
+}
+
+.ja-assert-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid;
+  flex-shrink: 0;
+}
+
+.ja-assert-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.ja-assert-banner-count {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+}
+
+.ja-assert-banner-pass {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #34d399;
+}
+
+.ja-assert-banner-fail {
+  background: rgba(244, 63, 94, 0.1);
+  border-color: rgba(244, 63, 94, 0.3);
+  color: #fb7185;
+}
+
+.ja-assert-result-card {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ja-assert-result-pass {
+  background: hsl(var(--card) / 0.45);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+.ja-assert-result-fail {
+  background: rgba(244, 63, 94, 0.06);
+  border-color: rgba(244, 63, 94, 0.35);
+}
+
+.ja-assert-result-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ja-assert-result-label-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ja-assert-result-label {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ja-assert-pill {
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  flex-shrink: 0;
+}
+
+.ja-assert-pill-pass {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
+.ja-assert-pill-fail {
+  background: rgba(244, 63, 94, 0.15);
+  color: #fb7185;
+}
+
+.ja-assert-result-msg {
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: hsl(var(--muted-foreground));
+  padding-left: 22px;
+  word-break: break-all;
+}
+
+.assertions-badge-pass {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.assertions-badge-fail {
+  background: rgba(244, 63, 94, 0.15);
+  color: #fb7185;
+  border: 1px solid rgba(244, 63, 94, 0.3);
+}
+

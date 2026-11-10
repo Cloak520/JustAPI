@@ -1,41 +1,94 @@
 <template>
   <div class="flex flex-col space-y-1.5">
-    <!-- 接口名称 (直接重命名当前接口) 与 所属子项目/分组 -->
-    <div class="flex items-center justify-between pb-0.5 px-0.5">
-      <div class="group/title flex items-center space-x-1.5 flex-1 max-w-md">
+    <!-- 接口名称、所属子项目/分组 与 导入/导出/复制扩展动作 -->
+    <div class="flex items-center justify-between pb-0.5 px-0.5 gap-2">
+      <div class="group/title flex items-center space-x-1.5 flex-1 max-w-md min-w-0">
         <input
           v-model="tabTitle"
           type="text"
           placeholder="未命名请求 (点击输入接口名称)"
           class="text-xs font-semibold bg-transparent hover:bg-muted/40 focus:bg-background px-2 py-0.5 rounded border border-transparent hover:border-border/60 focus:border-primary focus:outline-none transition w-full text-foreground truncate"
-          @change="handleTabTitleChange"
-          @blur="handleTabTitleChange"
+          @change="handleTabTitleCommit"
+          @blur="handleTabTitleCommit"
           @keydown.enter="($event.target as HTMLElement).blur()"
           title="点击直接重命名当前接口"
         />
         <Edit3 class="w-3 h-3 text-muted-foreground/40 group-hover/title:text-primary transition shrink-0 pointer-events-none" />
       </div>
 
-      <!-- 右侧：所属子项目与分组选择器 (点击可切换子项目或分组) -->
       <div class="flex items-center space-x-1.5 text-xs shrink-0">
         <button
-          @click="tabStore.showSaveModal = true"
+          @click="appStore.showSaveModal = true"
           class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono transition border"
-          :class="activeTab?.subProjectDir
-            ? 'bg-muted/50 hover:bg-muted text-foreground/90 border-border hover:border-primary/50'
-            : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-dashed border-amber-500/40'"
+          :class="
+            activeTab?.subProjectDir
+              ? 'bg-muted/50 hover:bg-muted text-foreground/90 border-border hover:border-primary/50'
+              : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-dashed border-amber-500/40'
+          "
           :title="activeTab?.subProjectDir ? '点击更改所属子项目与分组' : '当前请求尚未关联子项目，点击指定'"
         >
           <Folder class="w-3.5 h-3.5 text-amber-400 shrink-0" />
           <span class="max-w-[200px] truncate font-sans font-medium">
-            {{ activeTab?.subProjectDir ? `${subProjectDisplayName}${activeTab.group ? ` / ${activeTab.group}` : ''}` : '未关联子项目 (点击指定)' }}
+            {{
+              activeTab?.subProjectDir
+                ? `${subProjectDisplayName}${activeTab.group ? ` / ${activeTab.group}` : ''}`
+                : '未关联子项目 (点击指定)'
+            }}
           </span>
           <ChevronDown class="w-3 h-3 opacity-60 shrink-0" />
         </button>
 
-        <!-- 复制当前接口按钮 -->
+        <!-- 扩展注册：导入请求 (如 cURL) -->
         <button
-          @click="handleDuplicateCurrent"
+          v-if="importers.length > 0"
+          @click="showImportModal = true"
+          class="flex items-center space-x-1 px-2 py-1 rounded-lg text-[11px] font-sans font-medium transition border bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground border-border hover:border-primary/50"
+          title="导入外部请求 (如 cURL)"
+        >
+          <Terminal class="w-3.5 h-3.5 text-muted-foreground" />
+          <span>导入</span>
+        </button>
+
+        <!-- 扩展注册：导出请求 (单个直接点击复制，多个下拉选择) -->
+        <button
+          v-if="exporters.length === 1"
+          @click="runExporter(exporters[0])"
+          class="flex items-center space-x-1 px-2 py-1 rounded-lg text-[11px] font-sans font-medium transition border bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground border-border hover:border-primary/50"
+          :title="exporters[0].description || `导出并复制 ${exporters[0].label}`"
+        >
+          <Code2 class="w-3.5 h-3.5 text-muted-foreground" />
+          <span>{{ exporters[0].label }}</span>
+        </button>
+
+        <div v-else-if="exporters.length > 1" ref="exportDropdownRef" class="relative">
+          <button
+            @click="showExportDropdown = !showExportDropdown"
+            class="flex items-center space-x-1 px-2 py-1 rounded-lg text-[11px] font-sans font-medium transition border bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground border-border hover:border-primary/50"
+            title="导出当前请求为代码/命令"
+          >
+            <Code2 class="w-3.5 h-3.5 text-muted-foreground" />
+            <span>导出</span>
+            <ChevronDown class="w-3 h-3 opacity-60" />
+          </button>
+
+          <div
+            v-if="showExportDropdown"
+            class="absolute right-0 top-full mt-1 w-40 rounded-xl border border-border bg-card p-1 shadow-2xl z-50 text-xs animate-in fade-in zoom-in-95"
+          >
+            <button
+              v-for="exp in exporters"
+              :key="exp.id"
+              @click="runExporter(exp)"
+              class="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-muted transition truncate"
+              :title="exp.description"
+            >
+              {{ exp.label }}
+            </button>
+          </div>
+        </div>
+
+        <button
+          @click="sessionStore.duplicateActiveOrSubprojectRequest()"
           class="flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[11px] font-sans font-medium transition border bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground border-border hover:border-primary/50"
           title="复制当前接口为新副本 (Duplicate)"
         >
@@ -46,23 +99,22 @@
     </div>
 
     <div class="flex items-center space-x-2">
-      <!-- Method 自定义选择框 (彻底消除 Windows 原生 select 白底渲染问题) -->
+      <!-- Method 下拉选择器 -->
       <div ref="methodDropdownRef" class="relative shrink-0">
         <button
           type="button"
           @click="showMethodDropdown = !showMethodDropdown"
-          :class="methodColorClass"
-          class="font-mono font-bold text-xs px-3 py-2 rounded-lg border border-border flex items-center space-x-1.5 transition cursor-pointer select-none focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
+          :class="getMethodBadgeClass(req.method)"
+          class="font-mono font-bold text-xs px-3 py-2 rounded-lg border flex items-center space-x-1.5 transition cursor-pointer select-none focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
           title="点击切换 HTTP 请求方式"
         >
-          <span>{{ store.method }}</span>
+          <span>{{ req.method }}</span>
           <ChevronDown
             class="w-3.5 h-3.5 opacity-70 transition-transform duration-150"
             :class="showMethodDropdown ? 'rotate-180' : ''"
           />
         </button>
 
-        <!-- Method 浮层菜单 -->
         <div
           v-if="showMethodDropdown"
           class="absolute left-0 top-full mt-1.5 w-32 rounded-xl border border-border bg-card p-1 shadow-2xl z-50 text-xs font-mono font-semibold animate-in fade-in zoom-in-95 duration-100"
@@ -70,51 +122,61 @@
         >
           <div
             v-for="m in HTTP_METHODS"
-            :key="m.value"
-            @click="selectMethod(m.value)"
+            :key="m"
+            @click="selectMethod(m)"
             class="flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition hover:bg-muted"
-            :class="store.method === m.value ? 'bg-primary/10 font-bold' : ''"
+            :class="req.method === m ? 'bg-primary/10 font-bold' : ''"
           >
-            <span :class="m.color">{{ m.value }}</span>
-            <Check v-if="store.method === m.value" class="w-3.5 h-3.5 text-primary" />
+            <span :class="getMethodTextColor(m)">{{ m }}</span>
+            <Check v-if="req.method === m" class="w-3.5 h-3.5 text-primary" />
           </div>
         </div>
       </div>
 
-      <!-- URL 输入框群组 (BaseURL 拼接展示 + Path 输入) -->
+      <!-- URL 输入框群组 -->
       <div class="flex-1 flex items-center bg-card border border-border rounded-lg overflow-hidden focus-within:ring-1 focus-within:ring-primary transition">
-        <!-- 分组标记 (若存在) -->
-        <div v-if="store.group" class="px-2.5 py-1.5 bg-amber-500/10 text-amber-400 text-xs font-mono border-r border-border flex items-center space-x-1 shrink-0 select-none" :title="`分组: ${store.group}`">
+        <div
+          v-if="req.group"
+          class="px-2.5 py-1.5 bg-amber-500/10 text-amber-400 text-xs font-mono border-r border-border flex items-center space-x-1 shrink-0 select-none"
+          :title="`分组: ${req.group}`"
+        >
           <Folder class="w-3 h-3 text-amber-400" />
-          <span class="max-w-[120px] truncate font-sans font-medium text-[11px]">{{ store.group }}</span>
+          <span class="max-w-[120px] truncate font-sans font-medium text-[11px]">{{ req.group }}</span>
         </div>
 
-        <!-- 继承的 BaseURL 标签/前缀 (输入绝对地址 https?:// 或 {{...}} 时自动优雅收起) -->
         <div
           v-if="!isAbsoluteUrl"
           class="px-2.5 py-1.5 bg-muted/60 text-muted-foreground text-xs font-mono border-r border-border flex items-center space-x-1.5 shrink-0 select-none transition-all animate-in fade-in duration-150"
         >
           <Globe class="w-3.5 h-3.5 text-primary/80" />
-          <span class="max-w-[200px] truncate" :title="store.interpolatedBaseUrl !== store.baseUrl ? `${store.baseUrl} -> ${store.interpolatedBaseUrl}` : (store.baseUrl || '无 BaseURL')">{{ store.interpolatedBaseUrl || store.baseUrl || '无 BaseURL' }}</span>
+          <span
+            class="max-w-[200px] truncate"
+            :title="
+              sessionStore.interpolatedBaseUrl !== sessionStore.baseUrl
+                ? `${sessionStore.baseUrl} -> ${sessionStore.interpolatedBaseUrl}`
+                : sessionStore.baseUrl || '无 BaseURL'
+            "
+          >
+            {{ sessionStore.interpolatedBaseUrl || sessionStore.baseUrl || '无 BaseURL' }}
+          </span>
         </div>
 
-        <!-- 相对路径 Path 或完整绝对 URL 输入 -->
         <input
-          v-model="store.path"
+          ref="pathInputRef"
+          v-model="req.path"
           type="text"
-          :placeholder="isAbsoluteUrl ? 'https://api.example.com/v1/...' : '/api/v1/resource/{id} (可直接输入完整 https:// 地址)'"
+          :placeholder="isAbsoluteUrl ? 'https://api.example.com/v1/...' : '/api/v1/resource/{id} (可直接输入完整 https:// 地址，输入 {{ 插入变量)'"
           class="w-full bg-transparent px-3 py-2 text-xs font-mono text-foreground focus:outline-none"
-          @input="handlePathInput"
-          @change="handlePathChange"
-          @blur="handlePathChange"
-          @keydown.enter="store.send"
+          @change="sessionStore.autoSaveActiveTab()"
+          @blur="sessionStore.autoSaveActiveTab()"
+          @keydown.enter="handlePathEnter"
         />
       </div>
 
       <!-- 发送 / 取消按钮 -->
       <button
-        v-if="store.loading"
-        @click="store.cancelRequest"
+        v-if="sessionStore.loading"
+        @click="sessionStore.cancelActiveRequest()"
         class="flex items-center space-x-1.5 px-3.5 py-2 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 font-medium text-xs transition shadow-sm shrink-0 animate-in fade-in"
         title="中途取消此请求"
       >
@@ -124,7 +186,7 @@
 
       <button
         v-else
-        @click="store.send"
+        @click="sessionStore.sendActiveRequest()"
         class="flex items-center space-x-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium text-xs hover:bg-primary/90 transition shadow-sm shrink-0"
         title="快捷键: Cmd/Ctrl + Enter"
       >
@@ -138,11 +200,11 @@
       <div class="flex items-center justify-between text-[11px] text-muted-foreground">
         <div class="flex items-center space-x-2 truncate flex-1 min-w-0">
           <span class="text-muted-foreground/70 shrink-0">拼接预览:</span>
-          <span class="font-mono text-foreground/90 truncate select-all">{{ store.resolvedUrl }}</span>
+          <span class="font-mono text-foreground/90 truncate select-all">{{ sessionStore.resolvedUrl }}</span>
         </div>
         <button
-          v-if="store.resolvedUrl"
-          @click="copyUrlToClipboard(store.resolvedUrl, 'resolved')"
+          v-if="sessionStore.resolvedUrl"
+          @click="copyUrlToClipboard(sessionStore.resolvedUrl, 'resolved')"
           class="flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/80 transition shrink-0 ml-2 border border-transparent hover:border-border"
           title="复制拼接 URL 到剪贴板"
         >
@@ -152,16 +214,14 @@
         </button>
       </div>
 
-      <!-- 当存在环境变量插值时展示最终实际请求 URL 与变量来源徽章 -->
-      <div v-if="store.urlVariableTokens.length > 0" class="flex items-center justify-between text-[11px]">
+      <div v-if="sessionStore.urlVariableTokens.length > 0" class="flex items-center justify-between text-[11px]">
         <div class="flex items-center space-x-2 flex-wrap gap-y-1 flex-1 min-w-0">
           <span class="text-emerald-400/90 font-medium shrink-0">实际发送:</span>
-          <span class="font-mono text-emerald-400 font-semibold truncate">{{ store.interpolatedUrl }}</span>
+          <span class="font-mono text-emerald-400 font-semibold truncate">{{ sessionStore.interpolatedUrl }}</span>
 
-          <!-- 变量来源徽章 -->
           <div class="flex items-center space-x-1 pl-1">
             <span
-              v-for="token in store.urlVariableTokens"
+              v-for="token in sessionStore.urlVariableTokens"
               :key="token.key"
               class="text-[10px] px-1.5 py-0.2 rounded font-mono border"
               :class="{
@@ -170,13 +230,15 @@
                 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20': token.source === 'project',
                 'bg-rose-500/10 text-rose-400 border-rose-500/20': token.source === 'unresolved'
               }"
-              :title="token.source === 'system'
-                ? `${token.token}: 系统内置动态变量 (发送时实时生成)`
-                : token.source === 'subproject'
-                ? `${token.token} -> '${token.value}' (来自子项目覆盖)`
-                : token.source === 'project'
-                ? `${token.token} -> '${token.value}' (来自环境: ${token.environmentName || '当前环境'})`
-                : `${token.token}: 未定义变量，将保持原样`"
+              :title="
+                token.source === 'system'
+                  ? `${token.token}: 系统内置动态变量 (发送时实时生成)`
+                  : token.source === 'subproject'
+                    ? `${token.token} -> '${token.value}' (来自子项目覆盖)`
+                    : token.source === 'project'
+                      ? `${token.token} -> '${token.value}' (来自环境: ${token.environmentName || '当前环境'})`
+                      : `${token.token}: 未定义变量，将保持原样`
+              "
             >
               {{ token.token }}
               <span v-if="token.source === 'system'">⚡</span>
@@ -187,7 +249,7 @@
           </div>
         </div>
         <button
-          @click="copyUrlToClipboard(store.interpolatedUrl, 'interpolated')"
+          @click="copyUrlToClipboard(sessionStore.interpolatedUrl, 'interpolated')"
           class="flex items-center space-x-1 px-1.5 py-0.5 rounded text-[10px] text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition shrink-0 ml-2 border border-emerald-500/20"
           title="复制实际发送 URL 到剪贴板"
         >
@@ -197,132 +259,151 @@
         </button>
       </div>
     </div>
+
+    <!-- 通用请求导入弹窗 -->
+    <ImportRequestModal v-model="showImportModal" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed, ref } from 'vue'
 import { onClickOutside } from '@vueuse/core'
-import { ChevronDown, Send, Globe, Folder, Edit3, Copy, Check, Square } from 'lucide-vue-next'
-import { useRequestStore } from '@/stores/requestStore'
-import { useTabStore } from '@/stores/tabStore'
-import { useProjectStore } from '@/stores/projectStore'
-import type { ApiRequest, HttpMethod } from '@/types'
+import {
+  Check,
+  ChevronDown,
+  Code2,
+  Copy,
+  Edit3,
+  Folder,
+  Globe,
+  Send,
+  Square,
+  Terminal
+} from 'lucide-vue-next'
+import ImportRequestModal from '@/components/modals/ImportRequestModal.vue'
+import { useEscapeCancel } from '@/composables/useEscapeCancel'
+import {
+  isVariableAutocompleteActiveForElement,
+  useVariableInput,
+  wasVariableAutocompleteEnterHandled
+} from '@/composables/useVariableAutocomplete'
+import {
+  requestExporterRegistry,
+  requestImporterRegistry,
+  type RequestExporterContribution
+} from '@/core/registries/extensionRegistry'
+import { ESCAPE_PRIORITY } from '@/core/shortcuts/escapeStack'
+import { useAppStore } from '@/stores/appStore'
+import { useSessionStore } from '@/stores/sessionStore'
+import { useWorkspaceStore } from '@/stores/workspaceStore'
+import type { HttpMethod } from '@/types'
+import { getMethodBadgeClass, getMethodTextColor } from '@/utils/methodStyle'
 
-const store = useRequestStore()
-const tabStore = useTabStore()
-const projectStore = useProjectStore()
+const sessionStore = useSessionStore()
+const workspaceStore = useWorkspaceStore()
+const appStore = useAppStore()
 
+const HTTP_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']
+
+const activeTab = computed(() => sessionStore.activeTab)
+const req = computed(() => sessionStore.activeRequest)
+
+const importers = computed(() => requestImporterRegistry.list())
+const exporters = computed(() => requestExporterRegistry.list())
+
+const showImportModal = ref(false)
+const showExportDropdown = ref(false)
+const exportDropdownRef = ref<HTMLElement | null>(null)
 const showMethodDropdown = ref(false)
 const methodDropdownRef = ref<HTMLElement | null>(null)
+const pathInputRef = ref<HTMLInputElement | null>(null)
+const copiedType = ref<string | null>(null)
+
+useVariableInput(pathInputRef, {
+  onApplied: nextVal => {
+    req.value.path = nextVal
+    sessionStore.markCurrentDirty(true)
+  }
+})
+
+function handlePathEnter(e: KeyboardEvent) {
+  if (
+    wasVariableAutocompleteEnterHandled(e) ||
+    isVariableAutocompleteActiveForElement(e.currentTarget)
+  ) {
+    return
+  }
+  void sessionStore.sendActiveRequest()
+}
 
 onClickOutside(methodDropdownRef, () => {
   showMethodDropdown.value = false
 })
 
-const HTTP_METHODS: Array<{ value: HttpMethod; color: string }> = [
-  { value: 'GET', color: 'text-emerald-400' },
-  { value: 'POST', color: 'text-amber-400' },
-  { value: 'PUT', color: 'text-blue-400' },
-  { value: 'DELETE', color: 'text-rose-400' },
-  { value: 'PATCH', color: 'text-purple-400' },
-  { value: 'HEAD', color: 'text-teal-400' },
-  { value: 'OPTIONS', color: 'text-indigo-400' }
-]
+onClickOutside(exportDropdownRef, () => {
+  showExportDropdown.value = false
+})
 
-async function selectMethod(m: HttpMethod) {
-  store.method = m
-  showMethodDropdown.value = false
-  await handleMethodChange()
-}
+useEscapeCancel(
+  showMethodDropdown,
+  () => {
+    showMethodDropdown.value = false
+  },
+  { priority: ESCAPE_PRIORITY.DROPDOWN }
+)
 
-const activeTab = computed(() => tabStore.tabs.find(t => t.id === tabStore.activeTabId))
+useEscapeCancel(
+  showExportDropdown,
+  () => {
+    showExportDropdown.value = false
+  },
+  { priority: ESCAPE_PRIORITY.DROPDOWN }
+)
 
 const subProjectDisplayName = computed(() => {
   if (!activeTab.value?.subProjectDir) return ''
-  const sub = projectStore.subProjects.find(s => s.dir_name === activeTab.value?.subProjectDir)
+  const sub = workspaceStore.findSubProject(activeTab.value.subProjectDir)
   return sub ? sub.config.name : activeTab.value.subProjectDir
 })
 
 const tabTitle = computed({
   get: () => activeTab.value?.title || '',
   set: (val: string) => {
-    if (activeTab.value) {
-      activeTab.value.title = val
-      tabStore.markCurrentDirty(true)
-    }
+    sessionStore.handleTabTitleChange(val)
   }
 })
 
 const isAbsoluteUrl = computed(() => {
-  const p = store.path.trim()
+  const p = req.value.path.trim()
   return /^https?:\/\//i.test(p) || p.startsWith('{{')
 })
 
-function handlePathInput() {
-  if (activeTab.value) {
-    tabStore.markCurrentDirty(true)
-  }
+async function selectMethod(m: HttpMethod) {
+  req.value.method = m
+  showMethodDropdown.value = false
+  await sessionStore.autoSaveActiveTab()
 }
 
-async function handlePathChange() {
-  await autoSaveCurrentRequest()
-}
-
-async function handleMethodChange() {
-  if (activeTab.value) {
-    activeTab.value.method = store.method
-    tabStore.markCurrentDirty(true)
-    await autoSaveCurrentRequest()
-  }
-}
-
-async function handleTabTitleChange() {
+async function handleTabTitleCommit() {
   if (!activeTab.value) return
   const newName = activeTab.value.title.trim() || '未命名请求'
-  activeTab.value.title = newName
-  await autoSaveCurrentRequest()
+  if (activeTab.value.title !== newName) {
+    sessionStore.handleTabTitleChange(newName)
+  }
+  await sessionStore.autoSaveActiveTab()
 }
 
-async function autoSaveCurrentRequest() {
-  if (!activeTab.value) return
-  tabStore.captureCurrentDraft()
-
-  // 若当前请求已在子项目中保存过文件，自动同步更新到文件和内存列表中
-  if (activeTab.value.subProjectDir && activeTab.value.fileName && projectStore.projectPath) {
-    const sub = projectStore.subProjects.find(s => s.dir_name === activeTab.value?.subProjectDir)
-    const existingReq = sub?.requests.find(r => r.fileName === activeTab.value?.fileName || r.id === activeTab.value?.requestId)
-    if (existingReq) {
-      existingReq.name = activeTab.value.title || existingReq.name || existingReq.path
-      existingReq.method = store.method
-      existingReq.path = store.path.trim()
-      existingReq.pathParams = JSON.parse(JSON.stringify(store.pathParams))
-      existingReq.queryParams = JSON.parse(JSON.stringify(store.queryParams))
-      existingReq.headers = JSON.parse(JSON.stringify(store.headers))
-      existingReq.bodyType = store.bodyType
-      existingReq.bodyContent = store.bodyContent
-      existingReq.group = activeTab.value.group || store.group || existingReq.group
-
-      await projectStore.saveRequest(activeTab.value.subProjectDir, activeTab.value.fileName, existingReq)
-      activeTab.value.isDirty = false
-    }
+async function runExporter(exp: RequestExporterContribution) {
+  showExportDropdown.value = false
+  try {
+    const payload = sessionStore.buildExportPayload()
+    const output = exp.exportRequest(payload)
+    await navigator.clipboard.writeText(output)
+    appStore.showToast(`已复制 (${exp.label}) 到剪贴板`)
+  } catch (err: any) {
+    appStore.showToast(`导出失败: ${err?.message || err}`, true)
   }
 }
-
-const methodColorClass = computed(() => {
-  switch (store.method) {
-    case 'GET': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-    case 'POST': return 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-    case 'PUT': return 'bg-blue-500/10 text-blue-400 border-blue-500/30'
-    case 'DELETE': return 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-    case 'PATCH': return 'bg-purple-500/10 text-purple-400 border-purple-500/30'
-    case 'HEAD': return 'bg-teal-500/10 text-teal-400 border-teal-500/30'
-    case 'OPTIONS': return 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30'
-    default: return 'bg-muted text-muted-foreground'
-  }
-})
-
-const copiedType = ref<string | null>(null)
 
 async function copyUrlToClipboard(text: string, type: string) {
   if (!text) return
@@ -338,36 +419,4 @@ async function copyUrlToClipboard(text: string, type: string) {
     console.error('Failed to copy URL to clipboard', err)
   }
 }
-
-// 复制当前接口为新副本
-async function handleDuplicateCurrent() {
-  if (!activeTab.value) return
-
-  // 1. 若当前 Tab 已归属子项目，基于最新状态创建新副本并保存
-  if (activeTab.value.subProjectDir && projectStore.projectPath) {
-    const rawReq: ApiRequest = {
-      id: activeTab.value.requestId || crypto.randomUUID(),
-      name: tabTitle.value || activeTab.value.title || store.path || '未命名请求',
-      method: store.method,
-      path: store.path,
-      pathParams: JSON.parse(JSON.stringify(store.pathParams)),
-      queryParams: JSON.parse(JSON.stringify(store.queryParams)),
-      headers: JSON.parse(JSON.stringify(store.headers)),
-      bodyType: store.bodyType,
-      bodyContent: store.bodyContent,
-      subProjectId: activeTab.value.subProjectDir,
-      fileName: activeTab.value.fileName,
-      group: activeTab.value.group || store.group || undefined
-    }
-
-    const cloned = await projectStore.duplicateRequest(activeTab.value.subProjectDir, rawReq)
-    if (cloned) {
-      tabStore.openTab(cloned, activeTab.value.subProjectDir)
-    }
-  } else {
-    // 2. 若尚未保存到子项目，直接在 Tab 栏克隆内存副本
-    tabStore.duplicateMemoryTab(activeTab.value.id)
-  }
-}
 </script>
-

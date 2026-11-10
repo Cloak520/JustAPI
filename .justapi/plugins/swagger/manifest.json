@@ -1,0 +1,10 @@
+{
+  "id": "justapi.swagger",
+  "name": "Swagger / OpenAPI 导入同步器",
+  "version": "1.0.0",
+  "description": "支持 Swagger 2.0 与 OpenAPI 3.0/3.1（JSON/YAML）文档解析、按 Tag 自动分组与无损刷新同步",
+  "author": "JustAPI",
+  "entry": "index.mjs",
+  "minApiVersion": 1
+}
+

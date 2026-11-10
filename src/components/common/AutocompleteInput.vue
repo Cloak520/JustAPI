@@ -43,6 +43,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { useVariableInput } from '@/composables/useVariableAutocomplete'
 import type { HeaderSuggestion } from '@/utils/headers'
 
 const props = withDefaults(defineProps<{
@@ -54,12 +55,16 @@ const props = withDefaults(defineProps<{
   type?: string
   id?: string
   autoFocusNextId?: string
+  enableVariables?: boolean
+  subProjectDir?: string | null
 }>(), {
   suggestions: () => [],
   placeholder: '',
   inputClass: 'w-full bg-transparent px-1.5 py-1 font-mono text-foreground focus:outline-none placeholder:text-muted-foreground/40',
   disabled: false,
-  type: 'text'
+  type: 'text',
+  enableVariables: true,
+  subProjectDir: undefined
 })
 
 const emit = defineEmits<{
@@ -75,6 +80,15 @@ const inputRef = ref<HTMLInputElement | null>(null)
 const dropdownRef = ref<HTMLDivElement | null>(null)
 const isOpen = ref(false)
 const activeIndex = ref(0)
+
+const variableCtrl = useVariableInput(inputRef, {
+  enabled: () => props.enableVariables,
+  subProjectDir: () => props.subProjectDir,
+  onApplied: nextVal => {
+    emit('update:modelValue', nextVal)
+    emit('change', nextVal)
+  }
+})
 
 const dropdownStyle = ref<Record<string, string>>({
   top: '0px',
@@ -142,6 +156,10 @@ function updatePosition() {
 }
 
 function openDropdown() {
+  if (variableCtrl.isActive.value) {
+    closeDropdown()
+    return
+  }
   if (!props.suggestions || props.suggestions.length === 0) return
   updatePosition()
   isOpen.value = true
@@ -166,16 +184,25 @@ function onInput(e: Event) {
   emit('update:modelValue', target.value)
   emit('input', e)
   activeIndex.value = 0
+  if (variableCtrl.sync()) {
+    closeDropdown()
+    return
+  }
   openDropdown()
 }
 
 function onFocus(e: FocusEvent) {
-  openDropdown()
+  if (!variableCtrl.sync()) {
+    openDropdown()
+  } else {
+    closeDropdown()
+  }
   emit('focus', e)
 }
 
 function onBlur(e: FocusEvent) {
   closeDropdown()
+  variableCtrl.close()
   emit('blur', e)
 }
 
@@ -197,6 +224,9 @@ function selectItem(item: HeaderSuggestion) {
 }
 
 function onKeyDown(e: KeyboardEvent) {
+  if (variableCtrl.isActive.value) {
+    return
+  }
   if (isOpen.value && filteredSuggestions.value.length > 0) {
     if (e.key === 'ArrowDown') {
       e.preventDefault()

@@ -7,11 +7,24 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { EditorView, lineNumbers, highlightActiveLineGutter, highlightActiveLine, keymap } from '@codemirror/view'
-import { EditorState, Compartment } from '@codemirror/state'
+import { EditorState, Compartment, Prec } from '@codemirror/state'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { foldGutter, foldKeymap, syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language'
 import { json } from '@codemirror/lang-json'
 import { oneDark } from '@codemirror/theme-one-dark'
+import {
+  closeVariableAutocomplete,
+  getScopedVariableSuggestions,
+  isVariableAutocompleteActiveForOwner,
+  openVariableAutocomplete,
+  selectVariableAutocompleteItem,
+  handleVariableAutocompleteKeyDown
+} from '@/composables/useVariableAutocomplete'
+import {
+  findActiveVariableTrigger,
+  type ActiveVariableTrigger,
+  type VariableSuggestion
+} from '@/core/interpolation/suggestions'
 
 const isDark = ref(typeof document !== 'undefined' ? document.documentElement.classList.contains('dark') : true)
 let classObserver: MutationObserver | null = null
@@ -21,11 +34,15 @@ const props = withDefaults(defineProps<{
   readOnly?: boolean
   language?: 'json' | 'raw'
   lineWrapping?: boolean
+  enableVariables?: boolean
+  subProjectDir?: string | null
 }>(), {
   modelValue: '',
   readOnly: false,
   language: 'json',
-  lineWrapping: false
+  lineWrapping: false,
+  enableVariables: true,
+  subProjectDir: undefined
 })
 
 const emit = defineEmits<{
@@ -34,10 +51,67 @@ const emit = defineEmits<{
 
 const editorContainer = ref<HTMLDivElement | null>(null)
 let editorView: EditorView | null = null
+const variableOwnerId = Symbol('codemirror-variable')
 
 const lineWrappingComp = new Compartment()
 const languageComp = new Compartment()
 const themeComp = new Compartment()
+
+function applyVariableToEditor(trigger: ActiveVariableTrigger, item: VariableSuggestion) {
+  if (!editorView) return
+  const token = `{{${item.key}}}`
+  editorView.dispatch({
+    changes: {
+      from: trigger.start,
+      to: trigger.replaceEnd,
+      insert: token
+    },
+    selection: {
+      anchor: trigger.start + token.length
+    }
+  })
+  editorView.focus()
+}
+
+function syncVariablePopoverFromView(view: EditorView) {
+  if (props.readOnly || !props.enableVariables || !view.hasFocus) {
+    closeVariableAutocomplete(variableOwnerId)
+    return
+  }
+
+  const head = view.state.selection.main.head
+  const docText = view.state.doc.toString()
+  const trigger = findActiveVariableTrigger(docText, head)
+  if (!trigger) {
+    closeVariableAutocomplete(variableOwnerId)
+    return
+  }
+
+  const coords = view.coordsAtPos(trigger.start) || view.coordsAtPos(head)
+  const fallbackRect = view.dom.getBoundingClientRect()
+  const anchorRect = coords
+    ? { left: coords.left, top: coords.top, bottom: coords.bottom }
+    : { left: fallbackRect.left, top: fallbackRect.top, bottom: fallbackRect.top + 20 }
+
+  openVariableAutocomplete({
+    ownerId: variableOwnerId,
+    targetElement: view.contentDOM,
+    query: trigger.query,
+    allSuggestions: getScopedVariableSuggestions(props.subProjectDir),
+    anchorRect,
+    onSelect: item => applyVariableToEditor(trigger, item)
+  })
+}
+
+function runEditorVarKey(key: 'ArrowDown' | 'ArrowUp' | 'Enter' | 'Tab' | 'Escape'): boolean {
+  if (!isVariableAutocompleteActiveForOwner(variableOwnerId)) return false
+  if (key === 'Enter' || key === 'Tab') {
+    selectVariableAutocompleteItem()
+    return true
+  }
+  const synthetic = new KeyboardEvent('keydown', { key, cancelable: true })
+  return handleVariableAutocompleteKeyDown(synthetic)
+}
 
 function initEditor() {
   if (!editorContainer.value) return
@@ -52,14 +126,31 @@ function initEditor() {
     themeComp.of(isDark.value ? oneDark : []),
     lineWrappingComp.of(props.lineWrapping ? EditorView.lineWrapping : []),
     languageComp.of(props.language === 'json' ? json() : []),
+    Prec.highest(
+      keymap.of([
+        { key: 'ArrowDown', run: () => runEditorVarKey('ArrowDown') },
+        { key: 'ArrowUp', run: () => runEditorVarKey('ArrowUp') },
+        { key: 'Enter', run: () => runEditorVarKey('Enter') },
+        { key: 'Tab', run: () => runEditorVarKey('Tab') },
+        { key: 'Escape', run: () => runEditorVarKey('Escape') }
+      ])
+    ),
     keymap.of([
       ...defaultKeymap,
       ...historyKeymap,
       ...foldKeymap
     ]),
+    EditorView.domEventHandlers({
+      blur: () => {
+        closeVariableAutocomplete(variableOwnerId)
+      }
+    }),
     EditorView.updateListener.of((update) => {
       if (update.docChanged && !props.readOnly) {
         emit('update:modelValue', update.state.doc.toString())
+      }
+      if (!props.readOnly && (update.docChanged || update.selectionSet)) {
+        syncVariablePopoverFromView(update.view)
       }
     }),
     EditorState.readOnly.of(props.readOnly),
@@ -136,6 +227,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  closeVariableAutocomplete(variableOwnerId)
   if (classObserver) {
     classObserver.disconnect()
     classObserver = null

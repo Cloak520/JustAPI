@@ -1,7 +1,6 @@
 <template>
   <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
     <div class="flex flex-col w-full max-w-4xl h-[560px] bg-card border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-      <!-- 模态框顶部标题 -->
       <div class="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/40 shrink-0">
         <div class="flex items-center space-x-2 shrink-0 whitespace-nowrap">
           <div class="w-6 h-6 rounded-md bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
@@ -18,9 +17,8 @@
         </button>
       </div>
 
-      <!-- 模态框主体内容：左右分栏 (左侧环境列表，右侧变量编辑器) -->
       <div class="flex-1 flex min-h-0 overflow-hidden">
-        <!-- 左侧：环境配置列表 (Dev, Test, Prod 等) -->
+        <!-- 左侧：环境配置列表 -->
         <div class="w-52 border-r border-border bg-muted/20 flex flex-col shrink-0">
           <div class="flex items-center justify-between px-3 py-2 border-b border-border text-xs text-muted-foreground font-medium shrink-0 whitespace-nowrap">
             <span>环境列表</span>
@@ -80,7 +78,6 @@
         <!-- 右侧：当前选中环境的变量编辑区 -->
         <div class="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
           <template v-if="currentSelectedEnv">
-            <!-- 环境名称与模式切换 -->
             <div class="flex items-center justify-between px-4 py-2.5 border-b border-border bg-card/40 shrink-0 gap-3">
               <div class="flex items-center space-x-3 shrink-0 whitespace-nowrap">
                 <div class="flex items-center space-x-2 shrink-0 whitespace-nowrap">
@@ -93,7 +90,6 @@
                   />
                 </div>
 
-                <!-- 显式激活按钮 (防止换行) -->
                 <button
                   @click="toggleActiveEnv(currentSelectedEnv.id)"
                   class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition border shrink-0 whitespace-nowrap"
@@ -105,7 +101,6 @@
                 </button>
               </div>
 
-              <!-- 表格 vs 文本批量模式切换 (防止换行) -->
               <div class="flex items-center bg-muted/60 p-0.5 rounded-lg border border-border text-[11px] shrink-0 whitespace-nowrap">
                 <button
                   @click="mode = 'grid'"
@@ -124,9 +119,7 @@
               </div>
             </div>
 
-            <!-- 变量编辑视图 -->
             <div class="flex-1 overflow-y-auto p-4">
-              <!-- 1. 表格模式 -->
               <div v-if="mode === 'grid'" class="flex flex-col space-y-2">
                 <div class="flex items-center justify-between text-xs text-muted-foreground pb-1 border-b border-border/60">
                   <div class="flex items-center space-x-4 shrink-0 whitespace-nowrap">
@@ -179,7 +172,6 @@
                 </div>
               </div>
 
-              <!-- 2. 文本模式模式 (KEY=VALUE 或 KEY: VALUE) -->
               <div v-else class="flex flex-col h-full space-y-1.5">
                 <div class="text-[11px] text-muted-foreground">
                   每行一条变量，支持 <code class="font-mono bg-muted px-1 py-0.2 rounded">KEY=VALUE</code> 或 <code class="font-mono bg-muted px-1 py-0.2 rounded">KEY: VALUE</code> 格式：
@@ -203,7 +195,6 @@ timeout=5000"
         </div>
       </div>
 
-      <!-- 模态框底部操作栏 -->
       <div class="flex items-center justify-between px-5 py-3 border-t border-border bg-muted/40 shrink-0">
         <div v-pre class="flex items-center space-x-2 text-xs text-muted-foreground shrink-0 whitespace-nowrap">
           <span>内置动态变量:</span>
@@ -232,9 +223,11 @@ timeout=5000"
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { X, Plus, Trash2, Check, Globe } from 'lucide-vue-next'
-import { useProjectStore } from '@/stores/projectStore'
+import { computed, ref, watch } from 'vue'
+import { Check, Globe, Plus, Trash2, X } from 'lucide-vue-next'
+import { useEscapeCancel } from '@/composables/useEscapeCancel'
+import { structuredCloneSafe } from '@/core/models/requestFactory'
+import { useWorkspaceStore } from '@/stores/workspaceStore'
 import type { Environment } from '@/types'
 
 const props = defineProps<{
@@ -247,12 +240,11 @@ const emit = defineEmits<{
 
 const isOpen = computed({
   get: () => props.modelValue,
-  set: (v) => emit('update:modelValue', v)
+  set: v => emit('update:modelValue', v)
 })
 
-const projectStore = useProjectStore()
+const workspaceStore = useWorkspaceStore()
 
-// 本地可编辑的副本
 const localEnvironments = ref<Environment[]>([])
 const selectedEnvId = ref<string | null>(null)
 const activeEnvId = ref<string | null>(null)
@@ -265,26 +257,27 @@ interface VariableRow {
 }
 const variableRows = ref<VariableRow[]>([])
 
-// 当前选中的环境对象
-const currentSelectedEnv = computed(() => {
-  return localEnvironments.value.find(e => e.id === selectedEnvId.value) || null
-})
+const currentSelectedEnv = computed(
+  () => localEnvironments.value.find(e => e.id === selectedEnvId.value) || null
+)
 
-// 当模态框打开时，初始化数据副本
-watch(() => props.modelValue, (open) => {
-  if (open) {
-    const rawEnvs = projectStore.environments || []
-    localEnvironments.value = JSON.parse(JSON.stringify(rawEnvs))
-    activeEnvId.value = projectStore.activeEnvironment?.id || null
+watch(
+  () => props.modelValue,
+  open => {
+    if (open) {
+      const rawEnvs = workspaceStore.environments || []
+      localEnvironments.value = structuredCloneSafe(rawEnvs)
+      activeEnvId.value = workspaceStore.activeEnvironment?.id || null
 
-    if (localEnvironments.value.length > 0) {
-      selectedEnvId.value = activeEnvId.value || localEnvironments.value[0].id
-    } else {
-      selectedEnvId.value = null
+      if (localEnvironments.value.length > 0) {
+        selectedEnvId.value = activeEnvId.value || localEnvironments.value[0].id
+      } else {
+        selectedEnvId.value = null
+      }
+      loadCurrentEnvVariables()
     }
-    loadCurrentEnvVariables()
   }
-})
+)
 
 function switchEnv(id: string) {
   if (selectedEnvId.value === id) return
@@ -293,8 +286,7 @@ function switchEnv(id: string) {
   loadCurrentEnvVariables()
 }
 
-// 监听模式切换，同步表格和文本
-watch(mode, (newMode) => {
+watch(mode, newMode => {
   if (newMode === 'bulk') {
     syncToBulkText()
   } else {
@@ -413,16 +405,17 @@ function close() {
   isOpen.value = false
 }
 
+useEscapeCancel(isOpen, close)
+
 async function saveAll() {
   commitCurrentEnvVariables()
 
-  // 若尚未指定激活环境，且当前有环境存在，默认将当前查看的环境设为激活环境
   let targetActive = activeEnvId.value
   if (!targetActive && localEnvironments.value.length > 0) {
     targetActive = selectedEnvId.value || localEnvironments.value[0].id
   }
 
-  await projectStore.saveEnvironments(localEnvironments.value, targetActive)
+  await workspaceStore.saveEnvironments(localEnvironments.value, targetActive)
   close()
 }
 </script>

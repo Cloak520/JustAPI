@@ -8,6 +8,7 @@
     </div>
 
     <textarea
+      ref="textareaRef"
       v-model="rawText"
       rows="8"
       :placeholder="placeholderText"
@@ -19,14 +20,17 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
+import { useVariableInput } from '@/composables/useVariableAutocomplete'
 import type { KeyValuePair } from '@/types'
 import { parseBulkTextToPairs, formatPairsToBulkText } from '@/utils/parser'
 
 const props = withDefaults(defineProps<{
   items: KeyValuePair[]
   format?: 'colon' | 'equal'
+  subProjectDir?: string | null
 }>(), {
-  format: 'colon'
+  format: 'colon',
+  subProjectDir: undefined
 })
 
 const emit = defineEmits<{
@@ -34,6 +38,15 @@ const emit = defineEmits<{
 }>()
 
 const rawText = ref('')
+const textareaRef = ref<HTMLTextAreaElement | null>(null)
+
+useVariableInput(textareaRef, {
+  subProjectDir: () => props.subProjectDir,
+  onApplied: nextVal => {
+    rawText.value = nextVal
+    syncToItems()
+  }
+})
 
 const placeholderText = computed(() => {
   return props.format === 'colon'

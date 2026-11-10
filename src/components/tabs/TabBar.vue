@@ -6,26 +6,28 @@
     @dblclick="handleTabBarDblClick"
   >
     <div
-      v-for="tab in tabStore.tabs"
+      v-for="tab in sessionStore.tabs"
       :key="tab.id"
-      @click="tabStore.switchTab(tab.id)"
+      @click="sessionStore.switchTab(tab.id)"
       @contextmenu.prevent="openContextMenu($event, tab)"
-      :class="tabStore.activeTabId === tab.id ? 'bg-background border-t-2 border-t-primary border-x border-border text-foreground' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground border-transparent'"
+      :class="
+        sessionStore.activeTabId === tab.id
+          ? 'bg-background border-t-2 border-t-primary border-x border-border text-foreground'
+          : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground border-transparent'
+      "
       class="group flex items-center space-x-2 px-3 py-1.5 rounded-t-md cursor-pointer transition max-w-[200px] border border-b-0 shrink-0"
     >
-      <!-- Method 标签 -->
-      <span class="font-mono font-bold text-[10px]" :class="getMethodColor(tab.method)">
+      <span class="font-mono font-bold text-[10px]" :class="getMethodTextColor(tab.method)">
         {{ tab.method }}
       </span>
 
-      <!-- 标题 (双击可直接重命名) -->
       <input
         v-if="editingTabId === tab.id"
         ref="editInputRef"
         v-model="editingTitle"
         @blur="finishEditing(tab)"
         @keydown.enter="finishEditing(tab)"
-        @keydown.esc="cancelEditing"
+        @keydown.esc="handleEditEscape($event)"
         @click.stop
         class="text-[11px] font-medium bg-background px-1 py-0.2 rounded border border-primary focus:outline-none w-28 text-foreground"
       />
@@ -38,11 +40,10 @@
         {{ tab.title }}
       </span>
 
-      <!-- 未保存小圆点 / 关闭按钮 -->
       <div class="flex items-center shrink-0 space-x-0.5 justify-end">
         <span v-if="tab.isDirty" class="w-1.5 h-1.5 rounded-full bg-primary group-hover:hidden"></span>
         <button
-          @click.stop="tabStore.closeTab(tab.id)"
+          @click.stop="sessionStore.closeTab(tab.id)"
           class="rounded hover:bg-muted/80 p-0.5 text-muted-foreground/60 hover:text-foreground hidden group-hover:flex transition"
           title="关闭标签页"
         >
@@ -51,19 +52,17 @@
       </div>
     </div>
 
-    <!-- 新建 Tab 按钮 -->
     <button
-      @click="tabStore.newTab"
+      @click="sessionStore.newTab()"
       class="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition shrink-0 ml-1"
       title="新建请求 (Cmd/Ctrl + T)"
     >
       <Plus class="w-3.5 h-3.5" />
     </button>
 
-    <!-- Tab 栏右侧空白拖拽区域 -->
     <div class="flex-1 h-full min-w-[30px]" data-tauri-drag-region />
 
-    <!-- Tab 标签页右键快捷上下文菜单 (关闭其他 / 关闭右侧 / 全部关闭 / 复制 Tab / 侧边栏定位) -->
+    <!-- Tab 标签页右键快捷上下文菜单 -->
     <Teleport to="body">
       <div
         v-if="contextMenuVisible && contextMenuTab"
@@ -76,7 +75,6 @@
           :style="{ left: `${contextMenuPos.x}px`, top: `${contextMenuPos.y}px` }"
           @click.stop
         >
-          <!-- 1. 复制 Tab -->
           <button
             @click="handleDuplicateTab"
             class="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg hover:bg-muted text-foreground transition text-left group"
@@ -85,7 +83,6 @@
             <span>复制 Tab</span>
           </button>
 
-          <!-- 2. 在侧边栏快速定位文件 -->
           <button
             @click="handleRevealInSidebar"
             class="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg hover:bg-muted text-foreground transition text-left group"
@@ -98,17 +95,15 @@
 
           <div class="my-1 border-t border-border/60" />
 
-          <!-- 3. 关闭其他标签页 -->
           <button
             @click="handleCloseOtherTabs"
-            :disabled="tabStore.tabs.length <= 1"
+            :disabled="sessionStore.tabs.length <= 1"
             class="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg hover:bg-muted text-foreground transition text-left group disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Layers class="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
             <span>关闭其他标签页</span>
           </button>
 
-          <!-- 4. 关闭右侧标签页 -->
           <button
             @click="handleCloseTabsToRight"
             :disabled="isTargetLastTab"
@@ -120,7 +115,6 @@
 
           <div class="my-1 border-t border-border/60" />
 
-          <!-- 5. 全部关闭 -->
           <button
             @click="handleCloseAllTabs"
             class="w-full flex items-center space-x-2 px-2.5 py-1.5 rounded-lg hover:bg-destructive/10 text-destructive transition text-left group"
@@ -135,33 +129,44 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
-import { Plus, X, Copy, FolderSearch, Layers, ArrowRightToLine, XCircle } from 'lucide-vue-next'
-import { onKeyStroke } from '@vueuse/core'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { useTabStore } from '@/stores/tabStore'
-import { useProjectStore } from '@/stores/projectStore'
-import type { HttpMethod, TabItem } from '@/types'
+import {
+  ArrowRightToLine,
+  Copy,
+  FolderSearch,
+  Layers,
+  Plus,
+  X,
+  XCircle
+} from 'lucide-vue-next'
+import { useEscapeCancel } from '@/composables/useEscapeCancel'
+import { defaultEscapeStack, ESCAPE_PRIORITY } from '@/core/shortcuts/escapeStack'
+import { useAppStore } from '@/stores/appStore'
+import { useSessionStore } from '@/stores/sessionStore'
+import type { TabSession } from '@/types'
+import { getMethodTextColor } from '@/utils/methodStyle'
 
-const tabStore = useTabStore()
-const projectStore = useProjectStore()
+const sessionStore = useSessionStore()
+const appStore = useAppStore()
 
-// 右键上下文菜单状态
 const contextMenuVisible = ref(false)
 const contextMenuPos = ref({ x: 0, y: 0 })
-const contextMenuTab = ref<TabItem | null>(null)
+const contextMenuTab = ref<TabSession | null>(null)
 
-const canReveal = computed(() => {
-  return !!contextMenuTab.value?.subProjectDir && (!!contextMenuTab.value?.fileName || !!contextMenuTab.value?.requestId)
-})
+const canReveal = computed(
+  () =>
+    Boolean(contextMenuTab.value?.subProjectDir) &&
+    Boolean(contextMenuTab.value?.fileName || contextMenuTab.value?.requestId)
+)
 
 const isTargetLastTab = computed(() => {
   if (!contextMenuTab.value) return true
-  const idx = tabStore.tabs.findIndex(t => t.id === contextMenuTab.value?.id)
-  return idx === -1 || idx === tabStore.tabs.length - 1
+  const idx = sessionStore.tabs.findIndex(t => t.id === contextMenuTab.value?.id)
+  return idx === -1 || idx === sessionStore.tabs.length - 1
 })
 
-function openContextMenu(e: MouseEvent, tab: TabItem) {
+function openContextMenu(e: MouseEvent, tab: TabSession) {
   contextMenuTab.value = tab
 
   const menuW = 210
@@ -189,39 +194,37 @@ function handleDuplicateTab() {
   if (!contextMenuTab.value) return
   const id = contextMenuTab.value.id
   closeContextMenu()
-  tabStore.duplicateMemoryTab(id)
+  sessionStore.duplicateMemoryTab(id)
 }
 
 function handleRevealInSidebar() {
   if (!contextMenuTab.value) return
   const tab = contextMenuTab.value
   closeContextMenu()
-  projectStore.revealRequestInSidebar(tab)
+  appStore.revealRequestInSidebar(tab)
 }
 
 function handleCloseOtherTabs() {
   if (!contextMenuTab.value) return
   const id = contextMenuTab.value.id
   closeContextMenu()
-  tabStore.closeOtherTabs(id)
+  sessionStore.closeOtherTabs(id)
 }
 
 function handleCloseTabsToRight() {
   if (!contextMenuTab.value) return
   const id = contextMenuTab.value.id
   closeContextMenu()
-  tabStore.closeTabsToTheRight(id)
+  sessionStore.closeTabsToTheRight(id)
 }
 
 function handleCloseAllTabs() {
   closeContextMenu()
-  tabStore.closeAllTabs()
+  sessionStore.closeAllTabs()
 }
 
-onKeyStroke('Escape', () => {
-  if (contextMenuVisible.value) {
-    closeContextMenu()
-  }
+useEscapeCancel(contextMenuVisible, closeContextMenu, {
+  priority: ESCAPE_PRIORITY.DROPDOWN
 })
 
 onMounted(() => {
@@ -261,7 +264,7 @@ const editingTabId = ref<string | null>(null)
 const editingTitle = ref('')
 const editInputRef = ref<HTMLInputElement[] | null>(null)
 
-function startEditing(tab: TabItem) {
+function startEditing(tab: TabSession) {
   editingTabId.value = tab.id
   editingTitle.value = tab.title
   nextTick(() => {
@@ -272,38 +275,21 @@ function startEditing(tab: TabItem) {
   })
 }
 
-async function finishEditing(tab: TabItem) {
+async function finishEditing(tab: TabSession) {
   if (editingTabId.value !== tab.id) return
-  const newTitle = editingTitle.value.trim() || '未命名请求'
-  tab.title = newTitle
+  const nextTitle = editingTitle.value
   editingTabId.value = null
-  tabStore.markCurrentDirty(true)
-
-  if (tab.subProjectDir && tab.fileName && projectStore.projectPath) {
-    const sub = projectStore.subProjects.find(s => s.dir_name === tab.subProjectDir)
-    const existingReq = sub?.requests.find(r => r.fileName === tab.fileName || r.id === tab.requestId)
-    if (existingReq) {
-      existingReq.name = newTitle
-      await projectStore.saveRequest(tab.subProjectDir, tab.fileName, existingReq)
-    }
-  }
+  await sessionStore.renameTab(tab.id, nextTitle)
 }
 
 function cancelEditing() {
   editingTabId.value = null
 }
 
-function getMethodColor(method: HttpMethod) {
-  switch (method) {
-    case 'GET': return 'text-emerald-400'
-    case 'POST': return 'text-amber-400'
-    case 'PUT': return 'text-blue-400'
-    case 'DELETE': return 'text-rose-400'
-    case 'PATCH': return 'text-purple-400'
-    case 'HEAD': return 'text-teal-400'
-    case 'OPTIONS': return 'text-indigo-400'
-    default: return 'text-muted-foreground'
-  }
+function handleEditEscape(e: KeyboardEvent) {
+  if (defaultEscapeStack.hasActive(ESCAPE_PRIORITY.MODAL)) return
+  e.preventDefault()
+  e.stopPropagation()
+  cancelEditing()
 }
 </script>
-

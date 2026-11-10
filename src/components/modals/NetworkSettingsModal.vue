@@ -1,7 +1,6 @@
 <template>
   <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
     <div class="flex flex-col w-full max-w-2xl h-[520px] bg-card border border-border rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-      <!-- 模态框顶部 -->
       <div class="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/40 shrink-0">
         <div class="flex items-center space-x-2">
           <div class="w-6 h-6 rounded-md bg-primary/20 text-primary flex items-center justify-center">
@@ -17,7 +16,6 @@
         </button>
       </div>
 
-      <!-- 选项卡导航 -->
       <div class="flex items-center space-x-1 px-4 pt-2 border-b border-border bg-muted/10 shrink-0 text-xs">
         <button
           @click="activeTab = 'network'"
@@ -26,7 +24,7 @@
         >
           <span>网络 & 代理 & SSL</span>
           <span
-            v-if="store.networkSettings.dangerouslyDisableSsl || store.networkSettings.enableProxy"
+            v-if="workspaceStore.networkSettings.dangerouslyDisableSsl || workspaceStore.networkSettings.enableProxy"
             class="w-2 h-2 rounded-full bg-amber-400"
             title="有已启用的自定义网络选项"
           />
@@ -38,19 +36,16 @@
         >
           <span>Cookie Jar 管理</span>
           <span
-            v-if="store.sessionCookies.length > 0"
+            v-if="workspaceStore.sessionCookies.length > 0"
             class="px-1.5 py-0.2 rounded-full bg-primary/20 text-primary text-[10px] font-mono"
           >
-            {{ store.sessionCookies.length }}
+            {{ workspaceStore.sessionCookies.length }}
           </span>
         </button>
       </div>
 
-      <!-- 选项卡主体内容 -->
       <div class="flex-1 overflow-y-auto p-5">
-        <!-- 1. 网络与 SSL / 代理配置 -->
         <div v-if="activeTab === 'network'" class="space-y-5">
-          <!-- SSL 忽略开关 -->
           <div class="p-4 rounded-xl border border-border bg-card/60 space-y-2">
             <div class="flex items-center justify-between">
               <div class="space-y-0.5">
@@ -66,7 +61,7 @@
               </div>
               <label class="relative inline-flex items-center cursor-pointer">
                 <input
-                  v-model="store.networkSettings.dangerouslyDisableSsl"
+                  v-model="workspaceStore.networkSettings.dangerouslyDisableSsl"
                   type="checkbox"
                   class="sr-only peer"
                 />
@@ -75,7 +70,6 @@
             </div>
           </div>
 
-          <!-- HTTP / HTTPS 代理配置 -->
           <div class="p-4 rounded-xl border border-border bg-card/60 space-y-3">
             <div class="flex items-center justify-between">
               <div class="space-y-0.5">
@@ -86,7 +80,7 @@
               </div>
               <label class="relative inline-flex items-center cursor-pointer">
                 <input
-                  v-model="store.networkSettings.enableProxy"
+                  v-model="workspaceStore.networkSettings.enableProxy"
                   type="checkbox"
                   class="sr-only peer"
                 />
@@ -94,10 +88,10 @@
               </label>
             </div>
 
-            <div v-if="store.networkSettings.enableProxy" class="pt-2 border-t border-border/60 space-y-1.5">
+            <div v-if="workspaceStore.networkSettings.enableProxy" class="pt-2 border-t border-border/60 space-y-1.5">
               <label class="text-[11px] text-muted-foreground">代理服务器地址 (URL)</label>
               <input
-                v-model="store.networkSettings.proxyUrl"
+                v-model="workspaceStore.networkSettings.proxyUrl"
                 type="text"
                 placeholder="http://127.0.0.1:7890 或 socks5://127.0.0.1:1080"
                 class="w-full text-xs font-mono px-3 py-2 rounded-lg bg-background border border-border focus:outline-none focus:ring-1 focus:ring-primary"
@@ -106,9 +100,7 @@
           </div>
         </div>
 
-        <!-- 2. Cookie Jar 会话管理 -->
         <div v-else-if="activeTab === 'cookies'" class="space-y-4">
-          <!-- Cookie Jar 全局开关与清空 -->
           <div class="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border">
             <div>
               <div class="text-xs font-medium text-foreground">自动 Cookie 会话隔离 (Cookie Jar)</div>
@@ -119,8 +111,8 @@
 
             <div class="flex items-center space-x-3">
               <button
-                v-if="store.sessionCookies.length > 0"
-                @click="store.clearCookies()"
+                v-if="workspaceStore.sessionCookies.length > 0"
+                @click="workspaceStore.clearCookies()"
                 class="px-2 py-1 rounded text-destructive hover:bg-destructive/10 text-xs transition"
                 title="清空当前所有 Cookie"
               >
@@ -129,7 +121,7 @@
 
               <label class="relative inline-flex items-center cursor-pointer">
                 <input
-                  v-model="store.networkSettings.enableCookieJar"
+                  v-model="workspaceStore.networkSettings.enableCookieJar"
                   type="checkbox"
                   class="sr-only peer"
                 />
@@ -138,7 +130,6 @@
             </div>
           </div>
 
-          <!-- Cookie 列表表格 -->
           <div class="space-y-2">
             <div class="flex items-center justify-between text-xs text-muted-foreground pb-1 border-b border-border/60">
               <div class="flex items-center space-x-2">
@@ -155,7 +146,6 @@
               </button>
             </div>
 
-            <!-- 手动添加表单 -->
             <div v-if="showAddCookie" class="p-2.5 rounded-lg border border-primary/40 bg-card space-y-2">
               <div class="grid grid-cols-3 gap-2">
                 <input
@@ -193,10 +183,9 @@
               </div>
             </div>
 
-            <!-- 列表渲染 -->
             <div class="space-y-1 max-h-[220px] overflow-y-auto">
               <div
-                v-for="(cookie, idx) in store.sessionCookies"
+                v-for="(cookie, idx) in workspaceStore.sessionCookies"
                 :key="idx"
                 class="flex items-center justify-between px-2 py-1.5 rounded bg-card/40 border border-border/60 hover:bg-muted/30 transition text-xs font-mono group"
               >
@@ -206,7 +195,7 @@
                   <span class="text-muted-foreground/80 truncate flex-1" :title="cookie.value">{{ cookie.value }}</span>
                 </div>
                 <button
-                  @click="store.removeCookie(idx)"
+                  @click="workspaceStore.removeCookie(idx)"
                   class="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition shrink-0 ml-2"
                   title="删除此 Cookie"
                 >
@@ -214,7 +203,7 @@
                 </button>
               </div>
 
-              <div v-if="store.sessionCookies.length === 0" class="text-center py-8 text-xs text-muted-foreground">
+              <div v-if="workspaceStore.sessionCookies.length === 0" class="text-center py-8 text-xs text-muted-foreground">
                 当前 Cookie Jar 为空。发起包含 Set-Cookie 的请求后将自动收集并保持。
               </div>
             </div>
@@ -222,10 +211,9 @@
         </div>
       </div>
 
-      <!-- 底部关闭栏与同步指示器 -->
       <div class="flex items-center justify-between px-5 py-3 border-t border-border bg-muted/40 shrink-0">
         <div class="flex items-center space-x-1.5 text-xs">
-          <span v-if="projectStore.hasProject" class="flex items-center space-x-1 text-emerald-400 font-medium">
+          <span v-if="workspaceStore.hasProject" class="flex items-center space-x-1 text-emerald-400 font-medium">
             <CheckCircle2 class="w-3.5 h-3.5" />
             <span>配置已自动保存至 project.json</span>
           </span>
@@ -246,10 +234,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { X, SlidersHorizontal, Plus, Trash2, CheckCircle2 } from 'lucide-vue-next'
-import { useRequestStore } from '@/stores/requestStore'
-import { useProjectStore } from '@/stores/projectStore'
+import { computed, ref } from 'vue'
+import { CheckCircle2, Plus, SlidersHorizontal, Trash2, X } from 'lucide-vue-next'
+import { useEscapeCancel } from '@/composables/useEscapeCancel'
+import { ESCAPE_PRIORITY } from '@/core/shortcuts/escapeStack'
+import { useWorkspaceStore } from '@/stores/workspaceStore'
 
 const props = defineProps<{
   modelValue: boolean
@@ -261,11 +250,10 @@ const emit = defineEmits<{
 
 const isOpen = computed({
   get: () => props.modelValue,
-  set: (v) => emit('update:modelValue', v)
+  set: v => emit('update:modelValue', v)
 })
 
-const store = useRequestStore()
-const projectStore = useProjectStore()
+const workspaceStore = useWorkspaceStore()
 const activeTab = ref<'network' | 'cookies'>('network')
 
 const showAddCookie = ref(false)
@@ -277,7 +265,7 @@ const newCookie = ref({
 
 function confirmAddCookie() {
   if (!newCookie.value.name.trim()) return
-  store.addCookie({
+  workspaceStore.addCookie({
     name: newCookie.value.name.trim(),
     value: newCookie.value.value.trim(),
     domain: newCookie.value.domain.trim() || undefined,
@@ -287,8 +275,19 @@ function confirmAddCookie() {
   showAddCookie.value = false
 }
 
+function cancelAddCookie() {
+  showAddCookie.value = false
+}
+
 function close() {
+  showAddCookie.value = false
   isOpen.value = false
 }
-</script>
 
+useEscapeCancel(isOpen, close)
+useEscapeCancel(
+  () => isOpen.value && activeTab.value === 'cookies' && showAddCookie.value,
+  cancelAddCookie,
+  { priority: ESCAPE_PRIORITY.OVERLAY }
+)
+</script>
