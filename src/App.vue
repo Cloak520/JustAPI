@@ -114,6 +114,55 @@
           </div>
         </div>
 
+        <!-- 主题切换按钮 (点击循环: 深色→浅色→跟随系统) -->
+        <div ref="themeDropdownRef" class="relative">
+          <button
+            @click="showThemeDropdown = !showThemeDropdown"
+            class="flex items-center space-x-1 px-2.5 py-1 rounded bg-muted/80 hover:bg-muted text-foreground text-[11px] font-medium transition border border-border/60"
+            :title="`当前主题：${themeMode === 'dark' ? '深色' : themeMode === 'light' ? '浅色' : '跟随系统'}`"
+          >
+            <Moon v-if="themeMode === 'dark'" class="w-3.5 h-3.5 text-primary" />
+            <Sun v-else-if="themeMode === 'light'" class="w-3.5 h-3.5 text-amber-400" />
+            <Monitor v-else class="w-3.5 h-3.5 text-muted-foreground" />
+          </button>
+
+          <!-- 主题下拉面板 -->
+          <div
+            v-if="showThemeDropdown"
+            class="absolute right-0 top-full mt-1.5 w-40 rounded-xl border border-border bg-card p-1.5 shadow-2xl z-50 text-xs animate-in fade-in zoom-in-95"
+            @click.stop
+          >
+            <div class="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">外观主题</div>
+            <button
+              @click="setTheme('dark'); showThemeDropdown = false"
+              class="w-full flex items-center space-x-2 px-2 py-1.5 rounded hover:bg-muted transition text-xs"
+              :class="themeMode === 'dark' ? 'text-primary font-medium' : 'text-foreground'"
+            >
+              <Moon class="w-3.5 h-3.5 shrink-0" />
+              <span>深色</span>
+              <Check v-if="themeMode === 'dark'" class="w-3 h-3 ml-auto text-primary shrink-0" />
+            </button>
+            <button
+              @click="setTheme('light'); showThemeDropdown = false"
+              class="w-full flex items-center space-x-2 px-2 py-1.5 rounded hover:bg-muted transition text-xs"
+              :class="themeMode === 'light' ? 'text-primary font-medium' : 'text-foreground'"
+            >
+              <Sun class="w-3.5 h-3.5 shrink-0 text-amber-400" />
+              <span>浅色</span>
+              <Check v-if="themeMode === 'light'" class="w-3 h-3 ml-auto text-primary shrink-0" />
+            </button>
+            <button
+              @click="setTheme('system'); showThemeDropdown = false"
+              class="w-full flex items-center space-x-2 px-2 py-1.5 rounded hover:bg-muted transition text-xs"
+              :class="themeMode === 'system' ? 'text-primary font-medium' : 'text-foreground'"
+            >
+              <Monitor class="w-3.5 h-3.5 shrink-0" />
+              <span>跟随系统</span>
+              <Check v-if="themeMode === 'system'" class="w-3 h-3 ml-auto text-primary shrink-0" />
+            </button>
+          </div>
+        </div>
+
         <!-- 网络与 Cookie 设置按钮 -->
         <button
           @click="showNetworkModal = true"
@@ -242,13 +291,15 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import {
   PanelLeft, Save, Globe, ChevronDown, Check, Settings, SlidersHorizontal,
-  Minus, Maximize2, Minimize2, X, CheckCircle2, AlertCircle
+  Minus, Maximize2, Minimize2, X, CheckCircle2, AlertCircle,
+  Moon, Sun, Monitor
 } from 'lucide-vue-next'
 import { onKeyStroke, onClickOutside } from '@vueuse/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useRequestStore } from '@/stores/requestStore'
 import { useProjectStore } from '@/stores/projectStore'
 import { useTabStore } from '@/stores/tabStore'
+import { useTheme } from '@/composables/useTheme'
 import Sidebar from '@/components/sidebar/Sidebar.vue'
 import TabBar from '@/components/tabs/TabBar.vue'
 import UrlBar from '@/components/request/UrlBar.vue'
@@ -262,6 +313,7 @@ import type { ApiRequest } from '@/types'
 const store = useRequestStore()
 const projectStore = useProjectStore()
 const tabStore = useTabStore()
+const { themeMode, cycleTheme, setTheme } = useTheme()
 
 const isMac = ref(typeof navigator !== 'undefined' && /macintosh|mac os x/i.test(navigator.userAgent))
 const isMaximized = ref(false)
@@ -271,11 +323,6 @@ const isMaximized = ref(false)
 let unlistenResized: (() => void) | null = null
 
 onMounted(async () => {
-  // 默认始终使用深色模式
-  document.documentElement.classList.add('dark')
-  document.documentElement.style.colorScheme = 'dark'
-  getCurrentWindow().setTheme('dark').catch(() => {})
-
   try {
     isMaximized.value = await getCurrentWindow().isMaximized()
     unlistenResized = await getCurrentWindow().onResized(async () => {
@@ -293,6 +340,8 @@ const envDropdownRef = ref<HTMLElement | null>(null)
 const showEnvDropdown = ref(false)
 const showEnvModal = ref(false)
 const showNetworkModal = ref(false)
+const themeDropdownRef = ref<HTMLElement | null>(null)
+const showThemeDropdown = ref(false)
 
 // 侧边栏宽度与左右拖拽调整 (默认 288px)
 const DEFAULT_SIDEBAR_WIDTH = 288
@@ -408,6 +457,10 @@ onMounted(() => {
 
 onClickOutside(envDropdownRef, () => {
   showEnvDropdown.value = false
+})
+
+onClickOutside(themeDropdownRef, () => {
+  showThemeDropdown.value = false
 })
 
 async function handleHeaderMouseDown(e: MouseEvent) {
