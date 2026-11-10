@@ -175,7 +175,7 @@ impl WorkspaceRepository for LocalFsRepository {
                 headers: vec![KeyValueItem {
                     id: "h_global_1".to_string(),
                     key: "User-Agent".to_string(),
-                    value: "JustAPI/0.1.0".to_string(),
+                    value: "JustAPI/0.2.0".to_string(),
                     enabled: true,
                     description: Some("全局 User-Agent".to_string()),
                     inherited_from: None,

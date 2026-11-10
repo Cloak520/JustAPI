@@ -1,6 +1,6 @@
 [package]
 name = "justapi"
-version = "0.1.0"
+version = "0.2.0"
 description = "A lightweight local-first RESTful API client"
 authors = ["cloak"]
 license = "Apache-2.0"
